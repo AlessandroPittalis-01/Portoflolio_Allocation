@@ -1,0 +1,59 @@
+# config/profiles.yaml
+# One engine, many profiles. A profile is only a set of parameters.
+# ILLUSTRATIVE values for a methodological project: not advice, not suitability checks.
+# All values are [CALIBRATE]: validate against historical drawdowns before use.
+#
+# How each parameter changes across investors (rationale):
+#   target_vol            higher risk tolerance / longer horizon  -> higher
+#   dd_alert, dd_review   low behavioural tolerance               -> tighter (closer to 0)
+#   max_weight_per_etf    small portfolio or low diversification  -> lower cap
+#   equity_cap            shorter horizon or liabilities nearby   -> lower cap
+#   rebalance_band_pp     high costs/taxes per trade              -> wider band
+#   contributions         regular contributions allow rebalancing by buying
+#   stop_contributing_dd  drawdown at which the investor says they would stop
+#                         contributing. The vol target must make this level
+#                         very unlikely, otherwise the plan is not implementable.
+
+profiles:
+  prudent:
+    target_vol: 0.05          # ~5% annual; mostly bonds, little equity
+    dd_alert: -0.07
+    dd_review: -0.12
+    max_weight_per_etf: 0.40
+    equity_cap: 0.30
+    rebalance_band_pp: 0.05
+    stop_contributing_dd: -0.12
+
+  balanced:
+    target_vol: 0.08
+    dd_alert: -0.12
+    dd_review: -0.20
+    max_weight_per_etf: 0.40
+    equity_cap: 0.60
+    rebalance_band_pp: 0.05
+    stop_contributing_dd: -0.20
+
+  dynamic:
+    target_vol: 0.11
+    dd_alert: -0.18
+    dd_review: -0.30
+    max_weight_per_etf: 0.50
+    equity_cap: 0.85
+    rebalance_band_pp: 0.07   # wider band: fewer taxable sales
+    stop_contributing_dd: -0.30
+
+  # Project owner's profile. Keep personal data in a PRIVATE file
+  # (e.g. config/private_profile.yaml listed in .gitignore) if the repo goes public.
+  owner:
+    horizon_years: 10
+    base_currency: PLN
+    tax_residence: PL
+    monthly_contribution_eur_range: [500, 800]
+    target_vol: 0.07          # [CALIBRATE] 6-8%; lowered because of stop_contributing_dd
+    dd_alert: -0.10
+    dd_review: -0.18
+    max_weight_per_etf: 0.40
+    equity_cap: 0.50
+    rebalance_band_pp: 0.05
+    stop_contributing_dd: -0.25   # [DECIDED] stated by owner
+    # Open: the owner's real tolerance may be tighter than -25%. To be refined.

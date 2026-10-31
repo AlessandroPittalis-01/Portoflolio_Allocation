@@ -1,0 +1,18 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+*.egg-info/
+.pytest_cache/
+
+# Notebooks and editors
+.ipynb_checkpoints/
+.vscode/
+
+# Secrets and personal data (keep private if the repo is public)
+.env
+config/private_profile.yaml
+
+# Downloaded market data (re-creatable, can be large)
+data/raw/
+data/processed/

@@ -1,0 +1,268 @@
+# config/universe_candidates.yaml  (v0, 2026-10-28)
+#
+# Candidate ETFs for the research universe and the implementable universe.
+# Selection uses CRITERIA ONLY. No performance data was looked at (see IPS section 3).
+#
+# Data quality warning: figures come from public aggregator pages and they DISAGREE
+# with each other (for example the fund size of the EUR-hedged global aggregate ETF
+# is reported between ~2.5 and ~12 billion EUR). Every value marked "verify" must be
+# checked against the official factsheet / KID before the data module relies on it.
+# Fields set to "verify" are unknown, not guessed.
+#
+# HOW THIS FILE IS USED (workflow decided by the owner)
+#   stage 01  downloads ALL candidates listed here that have a confirmed yahoo_symbol
+#   next      a separate selection step picks the best candidate of each CATEGORY, by criteria only
+#   later     portfolio optimisation chooses among the selected ones
+# Several candidates can share one category (for example two MSCI World ETFs).
+#
+# ISINs written without comment were checked by search; the ones marked "(m)" come from memory and are
+# NOT verified: run  python pipeline/01_sourcing.py --find  and compare the fund name Yahoo shows.
+# yahoo_symbol = confirmed by running the pipeline. yahoo_symbol_try = unconfirmed guesses;
+# after a successful probe, copy the working symbol into yahoo_symbol by hand.
+
+criteria:                       # [CALIBRATE] proposals, approve or change before M1
+  ucits: preferred              # exception: gold, where the usual vehicle is an ETC (not UCITS)
+  share_class: accumulating     # Belka tax is deferred to sale (see IPS)
+  listing_currency: EUR         # lets us batch one PLN->EUR conversion per month
+  max_ter_pct: 0.25             # gold ETC compared separately
+  min_fund_size_eur_m: 500      # liquidity and closure risk
+  min_history_years: 5          # shorter histories need a declared proxy
+  one_etf_per_risk_driver: true # for the implementable universe
+  selection_rule: "by criteria, never by backtest performance"
+
+# --- Implementable core (max 6 risk ETFs + 1 cash-like) ---------------------------
+implementable:
+  - id: dev_equity
+    category: world_developed
+    risk_driver: developed equities
+    name: iShares Core MSCI World UCITS ETF USD (Acc)
+    isin: IE00B4L5Y983
+    ter_pct: 0.20
+    inception: 2009-09
+    share_class: accumulating
+    base_currency: USD
+    hedged: false
+    eur_listings: [IWDA (Euronext Amsterdam), EUNL (Xetra)]
+    yahoo_symbol: EUNL.DE        # CONFIRMED by the owner, 2026-10-29: 1738 daily rows from 2020-01-01
+    underlying_currency_note: "mostly USD (US weight around 70% per one aggregator: verify)"
+
+  - id: em_equity
+    category: emerging_markets
+    risk_driver: emerging equities
+    name: iShares Core MSCI EM IMI UCITS ETF USD (Acc)
+    isin: IE00BKM4GZ66
+    ter_pct: 0.18
+    inception: 2014-05-30
+    share_class: accumulating
+    base_currency: USD
+    hedged: false
+    eur_listings: [verify]      # an EUR line was reported on Borsa Italiana; confirm which exchange
+    yahoo_symbol: IS3N.DE        # CONFIRMED by probe (Oct 2026): 3146 rows from 2014-06-11, Xetra EUR. EIMI.MI (Milan) also works but flags stale prices.
+    underlying_currency_note: "TWD, KRW, CNY, INR... (top currencies per one aggregator: verify)"
+
+  - id: global_bond_hedged
+    category: global_bonds_hedged
+    risk_driver: global bonds (EUR hedged)
+    name: iShares Core Global Aggregate Bond UCITS ETF EUR Hedged (Acc)
+    isin: IE00BDBRDM35
+    ter_pct: 0.10
+    inception: verify
+    share_class: accumulating
+    base_currency: EUR
+    hedged: true                # hedged to EUR, so EUR/PLN risk remains
+    eur_listings: [AGGH (Xetra)]
+    yahoo_symbol: verify
+    yahoo_symbol_try: [AGGH.AS, AGGH.MI]   # AGGH.DE does NOT exist on Yahoo (probe, Oct 2026). Euronext Amsterdam (.AS) and Milan (.MI) are the next guesses
+    alternative: "Vanguard Global Aggregate Bond UCITS ETF EUR Hedged Acc, TER ~0.08% (ISIN: verify)"
+
+  - id: inflation_linked
+    category: global_inflation_linked
+    risk_driver: inflation-linked bonds (EUR hedged)
+    name: iShares Global Inflation Linked Govt Bond UCITS ETF EUR Hedged (Acc)
+    isin: IE00BKPT2S34
+    ter_pct: 0.20
+    inception: 2020-04-27       # short history: about 6.5 years
+    share_class: accumulating
+    base_currency: EUR
+    hedged: true
+    eur_listings: [IS3V (Xetra)]
+    yahoo_symbol: IS3V.DE        # CONFIRMED by probe (Oct 2026): 1661 rows from 2020-04-27, matches the fund launch date.
+    history_proxy: "Distributing class IE00BD8PH174 (inception 2017-09-22, same strategy, TER 0.20%): declare as proxy"
+
+  - id: gold
+    category: gold
+    risk_driver: gold
+    name: iShares Physical Gold ETC
+    isin: IE00B4ND3602
+    ter_pct: 0.12
+    inception: 2011-04-08
+    share_class: no income
+    legal_form: ETC              # NOT a UCITS fund: check availability and tax treatment with the broker
+    base_currency: USD
+    hedged: false
+    eur_listings: [PPFB (Xetra)]
+    yahoo_symbol: PPFB.DE        # CONFIRMED by probe (Oct 2026): 1349 rows but only from 2021-07-16 (EUR line is young): about 5.3 years.
+    alternative: "Xetra-Gold DE000A0S9GB0, TER ~0.36%, inception 2007-11, EUR (one source shows 0.00%: verify)"
+
+  - id: cash_like
+    category: eur_overnight
+    risk_driver: cash-like (used only for vol scaling)
+    name: Xtrackers II EUR Overnight Rate Swap UCITS ETF 1C
+    isin: verify
+    ter_pct: 0.10
+    inception: verify
+    share_class: accumulating
+    base_currency: EUR
+    hedged: n/a
+    eur_listings: [verify]
+    yahoo_symbol: XEON.DE        # CONFIRMED by probe (Oct 2026): 4277 rows from 2010-01-04. Flag 'stale_prices' to inspect (near-zero rates).
+    note: "swap-based, so counterparty and tracking differences must be checked"
+
+# --- Research-only additions (more assets for correlations, clustering, FX studies) ---
+research_only:
+  - id: global_bond_unhedged
+    category: global_bonds_unhedged
+    risk_driver: global bonds (unhedged)
+    name: iShares Core Global Aggregate Bond UCITS ETF USD (Dist)
+    isin: verify
+    ter_pct: 0.10
+    hedged: false
+    purpose: "compare hedged vs unhedged global bonds in PLN terms (IPS section 3.1)"
+    note: "distributing: use total-return (dividend-adjusted) prices. No accumulating unhedged version found yet: verify."
+
+  - id: europe_equity
+    category: europe_developed
+    risk_driver: developed Europe equities
+    name: Vanguard FTSE Developed Europe UCITS ETF EUR Accumulation
+    isin: verify
+    ter_pct: 0.10
+    purpose: "regional split inside developed equities, EUR-native exposure"
+
+  - id: eur_govt_bond
+    category: eur_govt_broad
+    risk_driver: euro government bonds
+    yahoo_symbol: EUNA.DE        # CONFIRMED by probe (Oct 2026): 2270 rows from 2017-11-21. Flag 'stale_prices' to inspect.
+    name: iShares Core EUR Govt Bond UCITS ETF
+    isin: verify
+    ter_pct: 0.07               # one source only: verify
+    purpose: "domestic-currency-style bond comparison against global bonds"
+
+  # ---- Candidates added from the reference list of categories (ISINs marked (m) are unverified) ----
+  - id: acwi_ishares
+    category: all_country
+    name: iShares MSCI ACWI UCITS ETF (Acc)
+    risk_driver: global equities incl. emerging
+    isin: IE00B6R52259   # (m)
+    yahoo_symbol: verify
+  - id: allworld_vanguard
+    category: all_country
+    name: Vanguard FTSE All-World UCITS ETF (USD) Accumulating
+    risk_driver: global equities incl. emerging
+    isin: IE00BK5BQT80   # (m)
+    yahoo_symbol: verify
+  - id: world_xtrackers
+    category: world_developed
+    name: Xtrackers MSCI World UCITS ETF 1C
+    risk_driver: developed equities
+    isin: IE00BJ0KDQ92   # (m)
+    yahoo_symbol: verify
+  - id: world_amundi
+    category: world_developed
+    name: Amundi MSCI World UCITS ETF Acc
+    risk_driver: developed equities
+    isin: LU1681043599   # (m)
+    yahoo_symbol: verify
+  - id: em_xtrackers
+    category: emerging_markets
+    name: Xtrackers MSCI Emerging Markets UCITS ETF 1C
+    risk_driver: emerging equities
+    isin: IE00BTJRMP35   # (m)
+    yahoo_symbol: verify
+  - id: world_momentum
+    category: factor_momentum
+    name: iShares Edge MSCI World Momentum Factor UCITS ETF
+    risk_driver: momentum factor
+    isin: IE00BP3QZ825   # (m)
+    yahoo_symbol: verify
+  - id: world_quality
+    category: factor_quality
+    name: iShares Edge MSCI World Quality Factor UCITS ETF
+    risk_driver: quality factor
+    isin: IE00BP3QZ601   # (m)
+    yahoo_symbol: verify
+  - id: world_low_vol
+    category: factor_low_volatility
+    name: iShares Edge MSCI World Minimum Volatility UCITS ETF
+    risk_driver: low volatility factor
+    isin: IE00B8FHGS14   # (m)
+    yahoo_symbol: verify
+  - id: world_value
+    category: factor_value
+    name: iShares Edge MSCI World Value Factor UCITS ETF
+    risk_driver: value factor
+    isin: IE00BP3QZB59   # (m)
+    yahoo_symbol: verify
+  - id: world_small_cap
+    category: small_cap
+    name: iShares MSCI World Small Cap UCITS ETF
+    risk_driver: small caps
+    isin: IE00BF4RFH31   # (m)
+    yahoo_symbol: verify
+  - id: china_tech
+    category: china_technology
+    name: China technology UCITS ETF (candidate not chosen yet)
+    risk_driver: China technology equities
+    isin: verify
+    search: "China technology UCITS ETF"
+    yahoo_symbol: verify
+  - id: world_health_care
+    category: sector_health_care
+    name: Xtrackers MSCI World Health Care UCITS ETF 1C
+    risk_driver: health care sector
+    isin: IE00BM67HK77   # (m)
+    yahoo_symbol: verify
+  - id: world_staples
+    category: sector_consumer_staples
+    name: Xtrackers MSCI World Consumer Staples UCITS ETF 1C
+    risk_driver: consumer staples sector
+    isin: IE00BM67HN09   # (m)
+    yahoo_symbol: verify
+  - id: europe_rafi
+    category: europe_fundamental
+    name: Europe RAFI fundamental-weighted UCITS ETF (candidate not chosen yet)
+    risk_driver: European equities, fundamental weighting
+    isin: verify
+    search: "FTSE RAFI Europe UCITS ETF"
+    yahoo_symbol: verify
+  - id: eur_corp_bonds
+    category: eur_corporate_bonds
+    name: iShares Core EUR Corp Bond UCITS ETF
+    risk_driver: euro investment-grade corporate bonds
+    isin: IE00B3F81R35   # (m)
+    yahoo_symbol: verify
+  - id: eur_gov_7_10
+    category: eur_govt_7_10y
+    name: iShares EUR Govt Bond 7-10yr UCITS ETF
+    risk_driver: euro government bonds 7-10 years
+    isin: verify
+    search: "iShares EUR Govt Bond 7-10yr UCITS ETF"
+    yahoo_symbol: verify
+  - id: eur_high_yield
+    category: eur_high_yield
+    name: iShares EUR High Yield Corp Bond UCITS ETF
+    risk_driver: euro high-yield bonds
+    isin: IE00B66F4759   # (m)
+    yahoo_symbol: verify
+  - id: eur_inflation_linked
+    category: eur_inflation_linked
+    name: iShares EUR Inflation Linked Govt Bond UCITS ETF
+    risk_driver: euro inflation-linked bonds
+    isin: IE00B0M62X26   # (m)
+    yahoo_symbol: verify
+  - id: us_short_treasury
+    category: us_short_treasury
+    name: iShares USD Treasury Bond 0-1yr UCITS ETF
+    risk_driver: US short-term treasuries (USD cash-like)
+    isin: IE00BGSF1X88   # (m)
+    yahoo_symbol: verify
+    note: "USD asset: adds dollar exposure even though it behaves like cash"

@@ -1,0 +1,15 @@
+# config/settings.yaml
+# Parameters of the data stage (pipeline/01_sourcing.py).
+# Relative paths are interpreted from the repository root.
+
+data:
+  start_date: "2010-01-01"     # first day requested; ETFs younger than this simply start later
+  raw_dir: data/raw            # cache of downloaded prices (not committed to git)
+  processed_dir: data/processed  # clean tables produced by the stage (not committed to git)
+  max_cache_age_days: 1        # reuse a cached file younger than this; use --refresh to force
+
+# Data-quality thresholds. They only RAISE FLAGS: nothing is silently corrected.
+quality:
+  max_daily_move: 0.12         # flag daily moves above 12% (rare for broad ETFs, so worth a look)
+  max_gap_days: 7              # flag stretches longer than 7 calendar days with no data
+  max_stale_days: 5            # flag the same closing price repeated for 5 or more days in a row
