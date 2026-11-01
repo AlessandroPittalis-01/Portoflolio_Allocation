@@ -16,7 +16,7 @@ Usage
 >>> profiles = load_profiles()           # reads config/profiles.yaml
 >>> owner = profiles["owner"]
 >>> owner.target_vol
-0.07
+0.09
 """
 
 from __future__ import annotations

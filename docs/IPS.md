@@ -26,7 +26,7 @@
 | 7 | Rebalancing style | prefers buying (contributions) over selling | `[DECIDED]` |
 | 8 | Share class | accumulating (Belka tax deferred to sale) | `[PROPOSED]` |
 | 9 | Max number of ETFs | 6 risk ETFs + 1 cash-like ETF for vol scaling | `[PROPOSED]` |
-| 10 | Vol target (owner profile) | 6-8% annual | `[CALIBRATE]` — lowered after #6 |
+| 10 | Vol target (owner profile) | 8-10% annual, measured in PLN (was 6-8%; raised by decision 24) | `[CALIBRATE]` |
 | 11 | IPS maintenance | updated step by step as code results are observed | `[DECIDED]` |
 | 12 | Allocation methods | tiered plan in section 5 | `[PROPOSED]` |
 | 13 | Drawdown at which owner feels discomfort / stops contributing | below -25% | OPEN — to be refined by looking at historical drawdowns of candidate portfolios |
@@ -38,8 +38,9 @@
 | 19 | Project layout | numbered pipeline stages 01-07 (see README), logic in `src/prm`, thin runners in `pipeline/` | `[DECIDED]` |
 | 20 | Selection workflow | stage 01 downloads all candidates; a separate stage picks the best per category by criteria; optimisation then chooses among the selected | `[DECIDED]` |
 | 21 | Candidate categories | those of the reference project plus ours (about 20 categories, see `universe_candidates.yaml`) | `[DECIDED]` |
-| 23 | Safe part of the portfolio | ETFs in EUR only; no PLN assets (Polish bonds, PLN money funds) for now. EUR/PLN risk is accepted and measured, not removed | `[DECIDED]` |
 | 22 | Selection rules | criteria-only ranking inside each category (stage 02; see section 9, 2026-11-01); performance never used | `[DECIDED]` |
+| 23 | Safe part of the portfolio | ETFs in EUR only; no PLN assets (Polish bonds, PLN money funds) for now. EUR/PLN risk is accepted and measured, not removed | `[DECIDED]` |
+| 24 | How risk is measured | in PLN, with EUR ETFs only; because EUR/PLN alone has 5-6% volatility, the owner target is raised from 7% to 9% (range 8-10%); the other profiles are shifted too (prudent 6.5%, balanced 9%, dynamic 12%) | `[DECIDED]` (owner chose option B, 2026-11-01) |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
 actually tolerate is not implementable. The vol target must be consistent with the
@@ -94,7 +95,8 @@ PLN and almost every ETF holds non-PLN assets.
    reduce losses in global stress for a PLN investor. BOTH statements are hypotheses to test on
    data, not facts.
 4. **Limit.** Share of total portfolio variance coming from FX: max `[CALIBRATE]` 30%.
-   Reported as an FX risk contribution.
+   Reported as an FX risk contribution. Note (2026-11-01): with EUR ETFs only this limit may be too tight
+   (see section 9). Until stage 05 shows the real FX shares it is REPORTED, not enforced.
 5. **Stress tests.** PLN depreciation and appreciation scenarios, plus historical episodes
    (2008, 2020, 2022).
 6. **No FX forecasting and no active currency views.** Hedging decisions use risk criteria
@@ -108,7 +110,7 @@ PLN and almost every ETF holds non-PLN assets.
 
 | Parameter | Owner profile | Notes |
 |-----------|---------------|-------|
-| Annual vol target | `[CALIBRATE]` 6-8% | see `config/profiles.yaml` for other profiles |
+| Annual vol target | `[CALIBRATE]` 8-10% in PLN (9% as the starting value) | see `config/profiles.yaml` for other profiles |
 | Drawdown ALERT | `[CALIBRATE]` -10% | triggers a review, never an automatic sale |
 | Drawdown REVIEW | `[CALIBRATE]` -18% | formal re-check of the IPS assumptions |
 | Max weight per ETF | `[CALIBRATE]` 40% | |
@@ -123,6 +125,8 @@ Principles `[PROPOSED]`:
    Otherwise a low-risk method looks "better" only because it takes less risk.
 2. Without leverage, hitting a vol target means shifting weight to a cash-like ETF
    (money market / short-term bonds). This ETF is used only for vol scaling.
+   Caveat (2026-11-01): the EUR overnight ETF has 6.3% volatility in PLN (all of it currency), so in PLN terms
+   it lowers risk much less than a PLN cash position would. Vol scaling with it is weaker than it looks.
 3. Methods are added in tiers. A tier is implemented only after the previous one is tested.
 4. A method becomes a final candidate only if, out of sample and net of costs, it improves
    on the simpler method below it on criteria fixed in advance (risk-adjusted return AND
@@ -335,6 +339,36 @@ the chosen assets (gold 5.3 years, China tech 5.7 years): choose the assets with
 A bug found by the tests while writing it: a loss on the very first day was not counted in the drawdown; fixed.
 Returns shown are descriptive: they never decide the selection.
 
+### 2026-11-01 — Stage 04 first run on real data `[OBSERVED]`
+
+Window of the covariances: 2021-07-19 to 2026-10-30 (1321 days, 23 assets), set by gold (PPFB.DE starts 2021-07-16). It contains
+ONE regime, including the 2022 rates shock, so correlations between bonds and equities estimated here are the "bad" ones of 2022.
+Ledoit-Wolf shrinkage 0.010 (many days, few assets); condition number 7043 (sample) -> 972 (Ledoit-Wolf).
+Main numbers in PLN: global equity ETF 16.3% volatility, maximum drawdown -29.0%; EUR government bonds 8.0-8.6% volatility and
+-26/-27% drawdown (still -21% below the peak); EUR overnight ETF 6.3% volatility, -12.7% drawdown; inflation-linked EUR-hedged
+-32.4% drawdown; gold 17.7% volatility. Expected shortfall 99% is about 1.6 times the Gaussian one for equities: Gaussian formulas
+underestimate tail losses. Stress: in 2022 equities (-8.7%) and bonds (-9% to -17%) fell together; only gold (+14%), the EUR
+overnight ETF (+5.5%) and USD short treasuries (+23%) held. In the COVID crash the EUR overnight ETF gained +6.5% in PLN and in the
+2011 episode +10.7%, only because the zloty weakened: the currency cushions EUR assets in crises, which is a feature of this investor's position.
+Redundant pairs (correlation above 0.95): EUR govt 7-10y vs EUR govt broad 0.984; World vs All-World 0.993; World vs Quality 0.977.
+Dollar beta is close to zero for equities and gold: this is NOT absence of dollar exposure (the dollar tends to rise when stocks fall, so the
+two effects cancel in a regression, and the NBP midday fixing is not synchronous with the ETF close). Only unhedged global bonds show a visible
+beta (0.22, R2 8%). Use fund factsheets for the exposure map; keep this number as a cross-check.
+Stress scenarios of 2011, 2013 and 2015 are mostly empty: few of our ETFs existed. Proxies would be needed (not done).
+
+Decision (owner, option B, 2026-11-01) `[DECIDED]`: the risk target is kept in PLN and raised to 9% for the owner (range 8-10%), see decision 24.
+To verify in stages 05-06: that the drawdown rules (alert -10%, review -18%) are consistent with a 9% volatility; the "safe" EUR bond
+ETFs alone already had drawdowns of -21% to -27% in PLN.
+
+### 2026-11-01 — Factor ETFs: bad early data removed with `use_from` `[PROVISIONAL]`
+
+Listing the daily moves above 12% (local currency): IS3R/IS3Q/IS3S show alternating moves of +-19% to +-31% from October to December 2014
+(an up of +24% followed by a down of -21% is not a market, it is bad data), IQQ0 shows the same in February-April 2013. Rows before
+2015-06-01 (momentum, last bad day 2015-05-08), 2015-01-02 (quality, value) and 2013-05-01 (low volatility) are now ignored through `use_from`.
+Raw files are untouched. STILL OPEN: all four show +12.5% to +12.8% on 2017-06-05 (identical across four funds: a data or fund event, not a market
+move) and IQQ0 shows +16.1% on 2025-10-24 followed by -13.8% on 2025-10-27 (a spike that reverses: a bad print). They are research-only
+ETFs, so they do not block stage 05. To inspect the raw rows around those dates before any of these four enters a final portfolio.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -350,3 +384,4 @@ No backtest results yet.
 - v0.7 — stage 01 closed (findings logged); stage 02 selection rules fixed; `accumulating` and `ter_pct` fields in the universe file.
 - v0.8 — first real run of stage 02 logged; stage 03 (NBP rates, PLN returns, FX variance share) built.
 - v0.9 — EUR-only decision; stage 03 live results (FX share); stage 04 risk analysis built.
+- v0.10 — stage 04 first run logged; decision 24 (risk in PLN, owner target 9%); `use_from` for four factor ETFs.

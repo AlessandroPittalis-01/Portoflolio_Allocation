@@ -23,6 +23,13 @@ class TestUniverse(unittest.TestCase):
         self.assertEqual(by_id["dev_equity"].tier, "implementable")
         self.assertEqual(len(by_id), len(assets))  # ids are unique
 
+    def test_factor_etfs_skip_their_bad_first_months(self):
+        _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
+        by_id = {a.id: a for a in assets}
+        for asset_id in ("world_momentum", "world_quality", "world_value", "world_low_vol"):
+            self.assertIsNotNone(by_id[asset_id].use_from, asset_id)
+        self.assertEqual(by_id["world_low_vol"].use_from, "2013-05-01")
+
     def test_every_asset_has_a_category_and_some_categories_have_several_candidates(self):
         _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
         self.assertTrue(all(a.category for a in assets))

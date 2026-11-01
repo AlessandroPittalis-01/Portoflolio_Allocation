@@ -3,6 +3,10 @@
 # ILLUSTRATIVE values for a methodological project: not advice, not suitability checks.
 # All values are [CALIBRATE]: validate against historical drawdowns before use.
 #
+# VOLATILITY IS MEASURED IN PLN, with EUR-quoted ETFs only (IPS decision 24). The EUR/PLN rate alone
+# has about 5-6% annual volatility and the EUR overnight ETF has 6.3% in PLN, so no portfolio of
+# these ETFs can sit much below 5.5-6%. Targets below that are not reachable (stage 04, 2026-11-01).
+#
 # How each parameter changes across investors (rationale):
 #   target_vol            higher risk tolerance / longer horizon  -> higher
 #   dd_alert, dd_review   low behavioural tolerance               -> tighter (closer to 0)
@@ -16,7 +20,7 @@
 
 profiles:
   prudent:
-    target_vol: 0.05          # ~5% annual; mostly bonds, little equity
+    target_vol: 0.065         # PLN terms; close to the FX floor, so mostly EUR bonds/cash, little equity
     dd_alert: -0.07
     dd_review: -0.12
     max_weight_per_etf: 0.40
@@ -25,7 +29,7 @@ profiles:
     stop_contributing_dd: -0.12
 
   balanced:
-    target_vol: 0.08
+    target_vol: 0.09
     dd_alert: -0.12
     dd_review: -0.20
     max_weight_per_etf: 0.40
@@ -34,7 +38,7 @@ profiles:
     stop_contributing_dd: -0.20
 
   dynamic:
-    target_vol: 0.11
+    target_vol: 0.12
     dd_alert: -0.18
     dd_review: -0.30
     max_weight_per_etf: 0.50
@@ -49,7 +53,7 @@ profiles:
     base_currency: PLN
     tax_residence: PL
     monthly_contribution_eur_range: [500, 800]
-    target_vol: 0.07          # [CALIBRATE] 6-8%; lowered because of stop_contributing_dd
+    target_vol: 0.09          # [CALIBRATE] 8-10% in PLN (decision 24); check against stop_contributing_dd in stage 06
     dd_alert: -0.10
     dd_review: -0.18
     max_weight_per_etf: 0.40

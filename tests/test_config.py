@@ -38,6 +38,14 @@ class TestLoadProfiles(unittest.TestCase):
         profiles = load_profiles(DEFAULT_PROFILES_PATH)
         self.assertEqual(set(profiles), {"prudent", "balanced", "dynamic", "owner"})
 
+    def test_targets_are_above_the_fx_floor_and_ordered(self):
+        """Volatility is measured in PLN with EUR ETFs: no target can be below ~6% (IPS decision 24)."""
+        profiles = load_profiles(DEFAULT_PROFILES_PATH)
+        for name, profile in profiles.items():
+            self.assertGreaterEqual(profile.target_vol, 0.06, name)
+        self.assertLess(profiles["prudent"].target_vol, profiles["balanced"].target_vol)
+        self.assertLess(profiles["balanced"].target_vol, profiles["dynamic"].target_vol)
+
     def test_owner_values(self):
         owner = load_profiles(DEFAULT_PROFILES_PATH)["owner"]
         self.assertEqual(owner.stop_contributing_dd, -0.25)

@@ -206,6 +206,7 @@ research_only:
     risk_driver: momentum factor
     isin: IE00BP3QZ825   # verified: --find showed the expected fund name
     yahoo_symbol: IS3R.DE        # CONFIRMED by --find: XETRA listing
+    use_from: "2015-06-01"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2015-05-08
   - id: world_quality
     accumulating: true
     category: factor_quality
@@ -213,6 +214,7 @@ research_only:
     risk_driver: quality factor
     isin: IE00BP3QZ601   # verified: --find showed the expected fund name
     yahoo_symbol: IS3Q.DE        # CONFIRMED by --find: XETRA listing
+    use_from: "2015-01-02"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2014-11-24
   - id: world_low_vol
     accumulating: true
     category: factor_low_volatility
@@ -220,6 +222,7 @@ research_only:
     risk_driver: low volatility factor
     isin: IE00B8FHGS14   # verified: --find showed the expected fund name
     yahoo_symbol: IQQ0.DE        # CONFIRMED by --find: XETRA listing of the USD (Acc) class. SXR0.DE is the EUR-hedged class
+    use_from: "2013-05-01"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2013-04-18
   - id: world_value
     accumulating: true
     category: factor_value
@@ -227,6 +230,7 @@ research_only:
     risk_driver: value factor
     isin: IE00BP3QZB59   # verified: --find showed the expected fund name
     yahoo_symbol: IS3S.DE        # CONFIRMED by --find: XETRA listing
+    use_from: "2015-01-02"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2014-11-24
   - id: world_small_cap
     accumulating: true
     category: small_cap
