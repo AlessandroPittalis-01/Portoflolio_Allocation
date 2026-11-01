@@ -16,3 +16,4 @@ config/private_profile.yaml
 # Downloaded market data (re-creatable, can be large)
 data/raw/
 data/processed/
+*.zip

@@ -286,6 +286,27 @@ Fund size is not used because there are no verified figures. After the choice, a
 daily-return correlation is above 0.95 (almost the same exposure: the optimiser should not treat them as separate bets).
 The winner is a starting point: the owner may override it with a written reason in this log.
 
+### 2026-11-01 — First run of stage 02 on real data `[OBSERVED]`
+
+23 winners out of 28 candidates in 24 categories. Where there was a real choice: `world_developed` -> XDWD.DE
+(TER 0.12 against 0.20 of EUNL.DE; but the 0.12 figure is disputed, see above), `all_country` -> VWCE.DE (lower TER),
+`emerging_markets` -> IS3N.DE (fewer data warnings). `europe_rafi` has no winner (no symbol).
+Redundancy check: VWCE.DE vs XDWD.DE correlation 0.993 and VWCE.DE vs IS3Q.DE (quality factor) 0.974.
+Meaning: the global ETF and the developed-world ETF are almost the same bet, and the factor ETFs add little diversification
+inside equities. Rule `[PROVISIONAL]`: the optimiser may use EITHER the all-country ETF OR the developed + emerging pair, never both,
+and factor/sector ETFs are research-only until stage 04 shows they add something.
+Open: the factor ETFs show daily moves of 29-31% in 2013-2014 (first months after launch): probably early-history artefacts,
+to inspect in the raw files before they enter any covariance estimate.
+
+### 2026-11-01 — Stage 03 (FX and PLN returns) built `[DECIDED]`
+
+PLN return = (1 + local return) x (1 + FX return), FX = NBP table A mid rate (PLN per 1 unit of the quote currency),
+forward-filled so that no future rate is used. Variance split with log returns: FX share = cov(PLN, FX) / var(PLN);
+local and FX shares add to 1; a negative FX share means the currency hedged the local risk. This is the measurement
+required by section 3.1. Limit: only the QUOTE currency is separated; the USD risk inside a EUR-quoted World ETF stays
+in the local part (to study in stage 04). Not tested against the live NBP API when written (no access from the build
+environment): the first real run is the test, and any difference must be logged here.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -299,3 +320,4 @@ No backtest results yet.
 - v0.5 — numbered pipeline layout; stage 01 (sourcing) built; first confirmed Yahoo symbol.
 - v0.6 — selection funnel (all candidates -> best per category -> optimisation); about 20 candidate categories; `--find` to confirm symbols.
 - v0.7 — stage 01 closed (findings logged); stage 02 selection rules fixed; `accumulating` and `ter_pct` fields in the universe file.
+- v0.8 — first real run of stage 02 logged; stage 03 (NBP rates, PLN returns, FX variance share) built.
