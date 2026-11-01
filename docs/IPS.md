@@ -38,6 +38,7 @@
 | 19 | Project layout | numbered pipeline stages 01-07 (see README), logic in `src/prm`, thin runners in `pipeline/` | `[DECIDED]` |
 | 20 | Selection workflow | stage 01 downloads all candidates; a separate stage picks the best per category by criteria; optimisation then chooses among the selected | `[DECIDED]` |
 | 21 | Candidate categories | those of the reference project plus ours (about 20 categories, see `universe_candidates.yaml`) | `[DECIDED]` |
+| 23 | Safe part of the portfolio | ETFs in EUR only; no PLN assets (Polish bonds, PLN money funds) for now. EUR/PLN risk is accepted and measured, not removed | `[DECIDED]` |
 | 22 | Selection rules | criteria-only ranking inside each category (stage 02; see section 9, 2026-11-01); performance never used | `[DECIDED]` |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
@@ -307,6 +308,33 @@ required by section 3.1. Limit: only the QUOTE currency is separated; the USD ri
 in the local part (to study in stage 04). Not tested against the live NBP API when written (no access from the build
 environment): the first real run is the test, and any difference must be logged here.
 
+### 2026-11-01 — Stage 03 first live run: FX risk is large for the "safe" assets `[OBSERVED]`
+
+The NBP download works (4249 daily rates for EUR/PLN and USD/PLN, 2010-01-04 to 2026-10-30), so the open point of the
+previous entry is closed. Annual volatility of the currency alone: EUR/PLN about 5.3-6.3%, USD/PLN about 10%.
+Share of the PLN variance due to the currency (full sample): equities 1-8% (the currency is small next to 16% equity
+volatility, and its correlation with equity returns is slightly negative, about -0.1: PLN tends to weaken when stocks fall,
+which cushions EUR assets for a PLN investor); EUR bonds 37-73% (EUR corporate bonds: 4.0% local volatility becomes 7.1% in PLN);
+the EUR overnight ETF 100% (0.3% local volatility, 6.3% in PLN); USD short treasuries 99%; gold 10%.
+Consequence: for a PLN investor the EUR "safe" assets are mostly an EUR/PLN position. With an owner volatility target of
+about 7%, a portfolio fully in EUR assets carries roughly 5-6% of currency volatility, so the FX variance limit of section 3.1
+(30%, `[CALIBRATE]`) is likely to bind or to be too tight. Order of magnitude only, to confirm in stages 04-05.
+Decision (owner, 2026-11-01) `[DECIDED]`: continue with EUR-quoted ETFs only; the currency risk is accepted and
+reported as a risk contribution. PLN assets (Polish government bonds, PLN money funds) are NOT added for now; they remain
+a possible later extension.
+
+### 2026-11-01 — Stage 04 (risk analysis) built `[DECIDED]`
+
+Measures only, no choices. Per asset in PLN: annual volatility, maximum drawdown on DAILY data (with peak, trough, recovery),
+historical and Gaussian VaR/ES (95% and 99%, 1 day), skewness, excess kurtosis, worst day, dollar beta (regression of the EUR
+return on the USD/EUR rate derived from the two NBP rates). Covariances on the common window of the chosen assets: sample,
+EWMA (lambda 0.94) and Ledoit-Wolf shrinkage towards the average variance; the shrinkage and the condition numbers are printed.
+Historical stress windows in `config/scenarios.yaml` (taper tantrum 2013, euro crisis 2011, China 2015, Q4 2018, COVID 2020,
+rates shock 2022), chosen from known events and not from the data. The covariance window is set by the shortest history among
+the chosen assets (gold 5.3 years, China tech 5.7 years): choose the assets with `--assets` to keep a longer window.
+A bug found by the tests while writing it: a loss on the very first day was not counted in the drawdown; fixed.
+Returns shown are descriptive: they never decide the selection.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -321,3 +349,4 @@ No backtest results yet.
 - v0.6 — selection funnel (all candidates -> best per category -> optimisation); about 20 candidate categories; `--find` to confirm symbols.
 - v0.7 — stage 01 closed (findings logged); stage 02 selection rules fixed; `accumulating` and `ter_pct` fields in the universe file.
 - v0.8 — first real run of stage 02 logged; stage 03 (NBP rates, PLN returns, FX variance share) built.
+- v0.9 — EUR-only decision; stage 03 live results (FX share); stage 04 risk analysis built.

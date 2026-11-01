@@ -1,0 +1,31 @@
+# config/scenarios.yaml  [PROPOSED]
+#
+# Historical stress windows used by stage 04. Dates come from well-known market episodes,
+# not from the behaviour of our ETFs. Each value is the PLN return from the CLOSE of `start`
+# to the CLOSE of `end`. Approximate dates: change them if you find better ones, and log it in the IPS.
+
+scenarios:
+  - id: taper_tantrum_2013
+    start: 2013-05-22
+    end: 2013-06-24
+    description: "US rates jump after the Fed hints at reducing bond purchases; bonds and emerging markets fall"
+  - id: euro_crisis_2011
+    start: 2011-07-22
+    end: 2011-10-04
+    description: "Euro-area debt crisis and the US rating downgrade; equities fall sharply"
+  - id: china_deval_2015
+    start: 2015-08-10
+    end: 2015-09-29
+    description: "Chinese yuan devaluation and global equity sell-off"
+  - id: q4_2018
+    start: 2018-09-20
+    end: 2018-12-24
+    description: "Fed tightening fears and trade war; equities fall about 20% in three months"
+  - id: covid_2020
+    start: 2020-02-19
+    end: 2020-03-23
+    description: "COVID crash: fastest bear market on record"
+  - id: rates_shock_2022
+    start: 2022-01-03
+    end: 2022-10-12
+    description: "Inflation and fast rate hikes: bonds AND equities fall together (no diversification)"

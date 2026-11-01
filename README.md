@@ -3,8 +3,8 @@
 A risk-first, multi-asset ETF portfolio allocation system in Python.
 Allocation is driven mainly by risk; forecasts are limited and can only tilt, not drive, decisions.
 
-> **Status: early development.** Done: investment policy, profile configuration, pipeline stage 01 (data sourcing with cache and quality checks) stage 02 (selection of one ETF per category) and stage 03 (NBP exchange rates, PLN returns, FX decomposition), all with tests.
-> Not built yet: stages 04-08 ( risk analysis, allocation, backtest, simulation, report). The rest of this README describes what is planned and is updated as each stage is built.
+> **Status: early development.** Done: investment policy, profile configuration, pipeline stage 01 (data sourcing with cache and quality checks), stage 02 (selection of one ETF per category), stage 03 (NBP exchange rates, PLN returns, FX decomposition) and stage 04 (risk analysis), all with tests.
+> Not built yet: stages 05-08 (allocation, backtest, simulation, report). The rest of this README describes what is planned and is updated as each stage is built.
 >
 > Methodological and educational project. Not financial advice.
 
@@ -44,7 +44,7 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 01 | `pipeline/01_sourcing.py` | download prices of ALL candidate ETFs (Yahoo), local cache, data-quality checks; `--find` and `--probe` help to confirm symbols | built |
 | 02 | `pipeline/02_selection.py` | pick the best candidate of each category, by criteria only (cost, size, history, data quality), never by performance | done |
 | 03 | `pipeline/03_fx_returns.py` | NBP exchange rates, PLN returns, local vs FX decomposition | done |
-| 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | planned |
+| 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | done |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | planned |
 | 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | planned |
 | 07 | `pipeline/07_simulation.py` | Monte Carlo with contributions | planned |
@@ -83,7 +83,7 @@ Other limits: short ETF histories, different listing currencies, no quality guar
 - [x] Stage 01 — sourcing: Yahoo source, cache, quality checks, tests (symbols of several assets still to be confirmed with `--probe`)
 - [x] Stage 02 — selection of the best candidate per category (criteria only)
 - [x] Stage 03 — FX and PLN returns (first live run of the NBP download still to confirm)
-- [ ] Stage 04 — risk analysis
+- [x] Stage 04 — risk analysis
 - [ ] Stage 05 — allocation methods
 - [ ] Stage 06 — backtest with contributions, costs, TWR and IRR
 - [ ] Stage 07 — Monte Carlo
@@ -129,6 +129,13 @@ python pipeline/03_fx_returns.py
 ```
 
 It writes `data/processed/returns_pln.csv` (daily returns in PLN, input of the risk stages), `returns_local.csv`, `fx_rates.csv` and `fx_decomposition.csv` (volatility in local currency and in PLN, and the share of the PLN variance due to the currency).
+
+Stage 04 (offline). Measures risk in PLN: volatility, daily drawdown, VaR/ES, tails, hidden dollar exposure, three covariance estimators and historical stress scenarios:
+
+```bash
+python pipeline/04_risk_analysis.py
+python pipeline/04_risk_analysis.py --assets allworld_vanguard,global_bond_hedged,gold,cash_like   # longer common window
+```
 
 Load the investor profiles from Python:
 
