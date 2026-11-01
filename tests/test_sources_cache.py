@@ -12,7 +12,7 @@ from pathlib import Path
 import pandas as pd
 
 from helpers import make_prices
-from prm.data.cache import cache_path, is_fresh, load_or_fetch, read_cache, safe_name, write_cache
+from prm.data.cache import cache_path, is_fresh, load_currency, load_or_fetch, read_cache, safe_name, write_cache
 from prm.data.sources import STANDARD_COLUMNS, PriceSource, YahooSource, standardise_frame
 
 
@@ -32,7 +32,12 @@ class FakeSource(PriceSource):
 
     def __init__(self, empty: bool = False):
         self.calls = 0
+        self.currency_calls = 0
         self.empty = empty
+
+    def currency(self, symbol):
+        self.currency_calls += 1
+        return "EUR"
 
     def fetch(self, symbol, start, end=None):
         self.calls += 1
@@ -144,6 +149,35 @@ class TestCache(unittest.TestCase):
             _, origin3 = load_or_fetch(source, "S", "2024-01-01", Path(tmp), 1, refresh=True)
             self.assertEqual((origin1, origin2, origin3), ("download", "cache", "download"))
             self.assertEqual(source.calls, 2)
+
+    def test_currency_is_asked_once_then_read_from_the_side_file(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            source = FakeSource()
+            first = load_currency(source, "EUNL.DE", Path(tmp))
+            second = load_currency(source, "EUNL.DE", Path(tmp))
+            self.assertEqual((first, second), ("EUR", "EUR"))
+            self.assertEqual(source.currency_calls, 1)
+
+    def test_unknown_currency_is_not_stored(self):
+        class NoCurrency(FakeSource):
+            def currency(self, symbol):
+                return None
+
+        with tempfile.TemporaryDirectory() as tmp:
+            self.assertIsNone(load_currency(NoCurrency(), "X", Path(tmp)))
+            self.assertFalse(list(Path(tmp).rglob("*.meta.json")))
+
+    def test_yahoo_currency_reads_fast_info(self):
+        class FakeTicker:
+            def __init__(self, symbol):
+                self.fast_info = {"currency": "USD"}
+
+        sys.modules["yfinance"] = types.SimpleNamespace(Ticker=FakeTicker)
+        self.assertEqual(YahooSource().currency("IB01.L"), "USD")
+
+    def test_yahoo_currency_failure_returns_none(self):
+        sys.modules["yfinance"] = None  # the library cannot be imported
+        self.assertIsNone(YahooSource().currency("IB01.L"))
 
     def test_empty_download_is_not_cached(self):
         with tempfile.TemporaryDirectory() as tmp:

@@ -75,6 +75,10 @@ class PriceSource(ABC):
         """List the listings found for an ISIN or a name (optional: not every source can do it)."""
         raise NotImplementedError(f"source '{self.name}' cannot search")
 
+    def currency(self, symbol: str) -> str | None:
+        """Currency in which the listing is quoted (for example ``EUR``), or ``None`` if unknown."""
+        return None
+
 
 class YahooSource(PriceSource):
     """Yahoo Finance through the ``yfinance`` library.
@@ -120,3 +124,18 @@ class YahooSource(PriceSource):
             except TypeError:  # older versions do not accept max_results
                 result = yf.Search(query)
         return list(result.quotes)
+
+    def currency(self, symbol: str) -> str | None:
+        """Quote currency of the listing according to Yahoo, or ``None`` if it cannot be read.
+
+        Note: London lines can be quoted in pence (``GBp``), which is 1/100 of a pound.
+        """
+        try:
+            import yfinance as yf
+
+            with warnings.catch_warnings():
+                warnings.filterwarnings("ignore", message="The inplace keyword")
+                value = yf.Ticker(symbol).fast_info["currency"]
+            return str(value) if value else None
+        except Exception:  # unknown is better than a crash: the column simply stays empty
+            return None

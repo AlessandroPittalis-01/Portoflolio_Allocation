@@ -9,7 +9,7 @@ What this stage does
 3. runs the quality checks of ``prm.data.quality`` on each series
 4. writes two tables to ``data/processed/``:
      * prices_adj_close.csv  - adjusted closing prices, one column per asset id
-     * quality_report.csv    - one row per asset: status, size, dates, issues
+     * quality_report.csv    - one row per asset: symbol, quote currency, use_from, status, size, dates, issues
 
 Nothing is corrected silently: problems are listed in the report, and the
 decision on what to do about them is yours (and goes into docs/IPS.md).
@@ -33,7 +33,7 @@ from pathlib import Path
 import pandas as pd
 
 from prm.config import DEFAULT_SETTINGS_PATH, load_data_settings
-from prm.data.cache import load_or_fetch
+from prm.data.cache import load_currency, load_or_fetch
 from prm.data.quality import QualityReport, check_prices
 from prm.data.sources import PriceSource, YahooSource
 from prm.data.universe import DEFAULT_UNIVERSE_PATH, Asset, load_universe
@@ -51,11 +51,14 @@ def _build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def _quality_row(asset_id: str, symbol: str, report: QualityReport, origin: str) -> dict:
+def _quality_row(asset_id: str, symbol: str, report: QualityReport, origin: str, currency: str | None,
+                 use_from: str | None = None) -> dict:
     """One line of quality_report.csv."""
     return {
         "asset_id": asset_id,
         "symbol": symbol,
+        "currency": currency or "unknown",
+        "use_from": use_from or "",
         "status": report.status,
         "n_rows": report.n_rows,
         "first_date": report.first_date.date().isoformat() if report.first_date is not None else "",
@@ -77,12 +80,28 @@ def _check(df: pd.DataFrame, symbol: str, settings, min_history_years: float | N
     )
 
 
+def _name_of(source: PriceSource, symbol: str) -> str:
+    """Fund name that Yahoo associates with a symbol (found by searching for the symbol itself)."""
+    try:
+        for hit in source.search(symbol):
+            if hit.get("symbol") == symbol:
+                return hit.get("longname") or hit.get("shortname") or "?"
+    except Exception:
+        pass
+    return "name not found"
+
+
 def _probe(assets: list[Asset], source: PriceSource, settings, refresh: bool, min_history: float | None) -> None:
-    """Try the unconfirmed symbol guesses and print what each one returns."""
+    """Try the unconfirmed symbol guesses and print what each one returns.
+
+    A symbol is confirmed only if the NAME shown here is the fund you intend to use (and the currency is
+    the one you expect): a symbol that merely exists proves nothing.
+    """
     print("Probing unconfirmed symbols (nothing is written to processed/):\n")
     for asset in assets:
         if asset.yahoo_symbol or not asset.symbols_to_try:
             continue
+        print(f"[{asset.id}] expected: {asset.name}")
         for symbol in asset.symbols_to_try:
             try:
                 df, origin = load_or_fetch(
@@ -90,37 +109,51 @@ def _probe(assets: list[Asset], source: PriceSource, settings, refresh: bool, mi
                 )
                 report = _check(df, symbol, settings, min_history)
                 first = report.first_date.date() if report.first_date is not None else "-"
-                print(f"{asset.id:22s} {symbol:10s} rows={report.n_rows:5d} first={first} "
-                      f"status={report.status} {report.codes or ''}")
+                if report.n_rows == 0:
+                    print(f"    {symbol:10s} no data (the symbol does not exist on Yahoo)")
+                    continue
+                currency = load_currency(source, symbol, settings.raw_dir) or "unknown"
+                print(f"    {symbol:10s} rows={report.n_rows:5d} first={first} status={report.status:7s} "
+                      f"currency={currency}  name: {_name_of(source, symbol)}")
+                for issue in report.issues:
+                    print(f"        {issue.severity}: {issue.message}")
             except Exception as exc:  # a failing symbol must not stop the probe
-                print(f"{asset.id:22s} {symbol:10s} FAILED: {exc}")
-    print("\nIf a symbol looks right (rows, first date, name on Yahoo), copy it by hand into")
-    print("'yahoo_symbol' in config/universe_candidates.yaml and note it in docs/IPS.md.")
+                print(f"    {symbol:10s} FAILED: {exc}")
+        print()
+    print("If the name matches the expected fund, copy the symbol by hand into 'yahoo_symbol' in")
+    print("config/universe_candidates.yaml, or paste this output in the chat and ask for the exact lines.")
 
 
 def _find(assets: list[Asset], source: PriceSource) -> None:
-    """For each asset without a confirmed symbol, ask Yahoo which listings match its ISIN (or name).
+    """For each asset without a confirmed symbol, ask Yahoo which listings match.
 
-    Read the fund name shown for each hit: it must be the fund you expect. Prefer the listing on a
-    euro exchange (for example XETRA, Amsterdam, Milan), then copy the symbol into 'yahoo_symbol'.
+    Two searches are made and merged: one by ISIN and one by name. The ISIN search often returns only
+    one listing (usually London, in dollars), while the name search shows listings on several exchanges.
+
+    Read the fund name shown for each hit: it must be the fund you expect. Prefer a listing on a
+    euro exchange (XETRA .DE, Amsterdam .AS, Milan .MI, Paris .PA), then copy the symbol into
+    'yahoo_symbol'. Avoid London (.L) lines: they are quoted in dollars, pounds or pence.
     """
     print("Searching Yahoo for unconfirmed assets (nothing is written):\n")
     for asset in assets:
         if asset.yahoo_symbol:
             continue
-        query = asset.isin or asset.search_text or asset.name
+        queries = [q for q in (asset.isin, asset.search_text or asset.name) if q]
         print(f"[{asset.id}] {asset.name}")
-        print(f"    searched for: {query}")
-        try:
-            hits = source.search(query)
-        except Exception as exc:  # a failing search must not stop the others
-            print(f"    SEARCH FAILED: {exc}\n")
-            continue
+        print(f"    searched for: {' | '.join(queries)}")
+
+        hits: dict[str, dict] = {}   # symbol -> hit, so the same listing is shown once
+        for query in queries:
+            try:
+                for hit in source.search(query):
+                    hits.setdefault(hit.get("symbol", "?"), hit)
+            except Exception as exc:  # a failing search must not stop the others
+                print(f"    SEARCH FAILED for '{query}': {exc}")
+
         if not hits:
             print("    no result: search the ISIN on justETF (see docs/SETUP_it.md) and send me the listings table\n")
             continue
-        for hit in hits:
-            symbol = hit.get("symbol", "?")
+        for symbol, hit in hits.items():
             exchange = hit.get("exchDisp") or hit.get("exchange") or "?"
             kind = hit.get("quoteType", "?")
             name = hit.get("longname") or hit.get("shortname") or "?"
@@ -170,8 +203,14 @@ def main(argv: list[str] | None = None, source: PriceSource | None = None) -> in
             rows.append({"asset_id": asset.id, "symbol": asset.yahoo_symbol, "status": "download_failed", "issues": str(exc)})
             continue
 
+        if asset.use_from:
+            # A documented human decision: rows before this date are ignored (the raw cache keeps them).
+            n_before = len(df)
+            df = df[df.index >= pd.Timestamp(asset.use_from)]
+            print(f"  [{asset.id}] use_from {asset.use_from}: {n_before - len(df)} early rows ignored")
         report = _check(df, asset.yahoo_symbol, settings, min_history)
-        rows.append(_quality_row(asset.id, asset.yahoo_symbol, report, origin))
+        currency = load_currency(source, asset.yahoo_symbol, settings.raw_dir)
+        rows.append(_quality_row(asset.id, asset.yahoo_symbol, report, origin, currency, asset.use_from))
         for issue in report.issues:
             print(f"  [{asset.id}] {issue.severity}: {issue.message}")
         # Series with structural errors (duplicates, non-positive prices...) are NOT passed on.

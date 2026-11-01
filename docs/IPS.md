@@ -38,6 +38,7 @@
 | 19 | Project layout | numbered pipeline stages 01-07 (see README), logic in `src/prm`, thin runners in `pipeline/` | `[DECIDED]` |
 | 20 | Selection workflow | stage 01 downloads all candidates; a separate stage picks the best per category by criteria; optimisation then chooses among the selected | `[DECIDED]` |
 | 21 | Candidate categories | those of the reference project plus ours (about 20 categories, see `universe_candidates.yaml`) | `[DECIDED]` |
+| 22 | Selection rules | criteria-only ranking inside each category (stage 02; see section 9, 2026-11-01); performance never used | `[DECIDED]` |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
 actually tolerate is not implementable. The vol target must be consistent with the
@@ -213,6 +214,78 @@ the past and do not affect recent data. To be settled by comparing with a second
 Still without a Yahoo symbol: global_bond_hedged (AGGH.AS / AGGH.MI to test), global_bond_unhedged,
 europe_equity.
 
+2026-11-01, first `--find` run (owner), 28 candidate ETFs in 24 categories. Result: for every ISIN checked, the
+fund name shown by Yahoo matched the expected fund, so those ISINs are now verified. A search by ISIN returns
+only one listing (usually London, in USD), while a search by name shows several exchanges; `--find` now does
+both. EUR listings found and recorded: EUNU.DE (global aggregate USD Dist, XETRA), VWCG.DE (Vanguard Developed
+Europe, XETRA), CW8.PA (Amundi MSCI World, Paris, swap-based), IBCI.AS (EUR inflation-linked, Amsterdam),
+UIC2.DE (UBS China technology, XETRA). For 14 ETFs only a London line (USD) was shown: EUR listings still to be
+found. IEAC and IHYG are distributing funds: acceptable for research with dividend-adjusted prices, but they
+fail the accumulating preference for an implementable portfolio. No result at all for the "Europe RAFI" and
+"EUR Govt Bond 7-10yr" searches (new search texts set). Listing currency must be recorded per symbol before
+stage 03: Xetra, Paris and Amsterdam lines are in EUR, London lines can be in USD, GBP or pence.
+
+2026-11-01, CORRECTION of an error of mine (assistant): the symbol EUNA.DE had been assigned to the asset
+`eur_govt_bond` (iShares Core EUR Govt Bond) on the strength of a weak web source. The second `--find` showed that
+Yahoo names EUNA.DE as the iShares Core Global Aggregate Bond UCITS ETF EUR Hedged (Acc), i.e. the asset
+`global_bond_hedged`; its first date, 2017-11-21, also matches that fund. So the data downloaded under
+`eur_govt_bond` so far were in fact the global aggregate hedged fund, and the stale-price flag of January 2018
+belongs to it too. Fixed: EUNA.DE now belongs to `global_bond_hedged` (the AGGH.AS and AGGH.MI listings have a
+shorter Yahoo history, from 2021-05-17 and 2019-06-12), `eur_govt_bond` is unconfirmed again, and the universe
+loader now refuses the same symbol on two assets. Lesson recorded: a symbol is confirmed only when the fund name
+Yahoo shows matches the intended fund, never from a ticker seen on a third-party page.
+
+2026-11-01, second `--find` (owner): XETRA listings confirmed for 10 more ETFs (XDWD.DE, XMME.DE, IS3R.DE,
+IS3Q.DE, IQQ0.DE, IS3S.DE, IUSN.DE, XDWH.DE, XDWS.DE, IBCM.DE). Still without a EUR listing: acwi_ishares,
+allworld_vanguard, eur_corp_bonds, eur_high_yield, us_short_treasury (new guesses to test with `--probe`),
+and no result for europe_rafi and eur_govt_bond. The quality report now has a `currency` column (quote
+currency according to Yahoo), needed before stage 03.
+
+2026-11-01, probe and `--find` run 3 (owner). Confirmed by fund name: EUNH.DE (iShares Core EUR Govt Bond, XETRA,
+distributing; accumulating class IEGS.MI on Milan). Symbols that exist on Yahoo but whose fund NAME has not been
+checked yet (the old probe printed only rows and dates, which is not enough): IUSQ.DE (data from 2011-10-21),
+VWCE.DE (2019-07-29), VWCE.MI, IEAC.AS and IEAC.MI (2010), IHYG.MI (2010-12-15). Symbols that do not exist:
+EUNF.DE, IHYG.AS, IB01.DE, IB01.MI, IB01.AS; for the USD short Treasury ETF only the London line IB01.L remains.
+Probe now prints the fund name and the quote currency. `stale_prices` flags appeared again on IUSQ.DE, VWCE.MI,
+IEAC.MI and IHYG.MI (details now printed by the probe). `europe_rafi` found nothing twice: probably not available
+as a UCITS ETF.
+
+2026-11-01, probe with fund names (owner). Confirmed (name and currency match): IUSQ.DE, VWCE.DE, IEAC.AS,
+IHYG.MI, IB01.L (USD, London). Findings: (1) IUSQ.DE has one frozen price for its first 116 days (2011-10-21
+to 2012-04-02): not a real price series; (2) IB01.L has a +1883.8% daily move on 2019-02-22, two days after its first
+date: the first rows are wrong; (3) the two Milan listings VWCE.MI and IEAC.MI (different funds, same exchange) show
+the SAME stale run, 2022-09-12 to 2022-09-20, so it is probably an exchange or data-provider problem and not a
+fund problem; (4) IHYG.MI has 15 identical closes in 2012-06-22 to 2012-07-12, not explained. Decision `[PROVISIONAL]`:
+a new optional field `use_from` in `universe_candidates.yaml` tells stage 01 to ignore earlier rows of one asset.
+It is set for IUSQ.DE (2012-04-03) and IB01.L (2019-02-22) and must be confirmed by looking at the first rows of the raw
+files. The raw cache is never modified, and the field is shown in `quality_report.csv`. Rule: bad data are never
+corrected silently; ignoring early rows is allowed only as a documented decision of this kind.
+
+### 2026-11-01 — Stage 01 closed: findings of the full run (27 series downloaded) `[OBSERVED]`
+
+Stage 01 is considered **finished**. The flags below are recorded, not fixed: nothing was corrected silently.
+- `stale_prices` (runs of identical closes): XEON.DE, EUNA.DE, EUNU.DE, VWCG.DE, IHYG.MI, IB01.L. For XEON.DE (overnight
+  rate) and the short-bond funds a flat price over a few days is plausible; for the others the cause is not known.
+  Decision `[PROVISIONAL]`: keep the series, flag stays visible; revisit in stage 04 if returns look wrong.
+- `large_daily_move`: the factor ETFs (IS3R, IS3Q, IQQ0, IS3S) in 2013-2014 look like early-history artefacts;
+  XMME.DE +16.1% on 2025-10-24, UIC2.DE 24.2% on 2022-03-16 (China tech, a real market event is plausible),
+  VWCG.DE 12.1% on 2020-03-12 (COVID crash, plausible). Not removed. Check against a second source if they matter.
+- `zero_volume`: CW8.PA has 49% zero-volume days (swap-based fund on Paris): a liquidity signal, counted as a warning in stage 02.
+- `short_history`: gold 5.3 years and China tech 5.7 years: usable but near the 5-year minimum.
+- Distributing funds (EUNU, EUNH, IEAC, IBCM, IHYG): adjusted prices include dividends, but they fail the accumulating
+  preference. Stage 02 ranks accumulating funds first; these stay research-only unless they are the only candidate.
+- `europe_rafi`: no UCITS ETF found twice. `[OPEN]`: check justETF once, otherwise remove from the list.
+- TER figures differ between aggregators (for example 0.12% against 0.19% for the same fund). Values in the YAML
+  are provisional until checked on the KID. Stage 02 treats TER gaps below 0.05 percentage points as a tie.
+
+### 2026-11-01 — Stage 02 (selection) built `[DECIDED]`
+
+One ETF per category, by fixed rules in this order: eligible (usable data, history >= 5 years); accumulating first;
+EUR listing; fewer data warnings; lower TER (ties below 0.05 pp); longer history; id. **Performance is never used.**
+Fund size is not used because there are no verified figures. After the choice, a redundancy check lists winners whose
+daily-return correlation is above 0.95 (almost the same exposure: the optimiser should not treat them as separate bets).
+The winner is a starting point: the owner may override it with a written reason in this log.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -225,3 +298,4 @@ No backtest results yet.
 - v0.4 — global bonds; explicit FX risk policy (section 3.1).
 - v0.5 — numbered pipeline layout; stage 01 (sourcing) built; first confirmed Yahoo symbol.
 - v0.6 — selection funnel (all candidates -> best per category -> optimisation); about 20 candidate categories; `--find` to confirm symbols.
+- v0.7 — stage 01 closed (findings logged); stage 02 selection rules fixed; `accumulating` and `ter_pct` fields in the universe file.

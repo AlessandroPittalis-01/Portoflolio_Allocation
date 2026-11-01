@@ -26,14 +26,24 @@ def load_stage():
 class FakeSource(PriceSource):
     name = "fake"
 
+    def __init__(self):
+        self.queries = []   # every search text received, in order
+
     def fetch(self, symbol, start, end=None):
         df = make_prices(start="2018-01-01")
         if symbol == "BAD":  # a series with duplicated dates: the pipeline must reject it
             df = pd.concat([df, df.iloc[[5]]])
         return df
 
+    def currency(self, symbol):
+        return "EUR"
+
     def search(self, query, max_results=10):
-        return [{"symbol": "FOUND.DE", "exchDisp": "XETRA", "quoteType": "ETF", "longname": f"Fund for {query}"}]
+        self.queries.append(query)
+        hits = [{"symbol": "FOUND.DE", "exchDisp": "XETRA", "quoteType": "ETF", "longname": f"Fund for {query}"}]
+        if query == "TRY1":   # searching for a symbol itself returns that symbol, with its fund name
+            hits.append({"symbol": "TRY1", "exchDisp": "XETRA", "quoteType": "ETF", "longname": "The Real Fund Name"})
+        return hits
 
 
 SETTINGS = """
@@ -54,7 +64,8 @@ criteria:
 implementable:
   - {id: good, name: Good, risk_driver: r, yahoo_symbol: GOOD}
   - {id: bad, name: Bad, risk_driver: r, yahoo_symbol: BAD}
-  - {id: nosym, name: NoSym, risk_driver: r, yahoo_symbol: verify, yahoo_symbol_try: [TRY1]}
+  - {id: trim, name: Trim, risk_driver: r, yahoo_symbol: GOOD2, use_from: "2020-01-01"}
+  - {id: nosym, name: NoSym, risk_driver: r, isin: XX0000000001, yahoo_symbol: verify, yahoo_symbol_try: [TRY1]}
 """
 
 
@@ -70,19 +81,23 @@ class TestStage01(unittest.TestCase):
     def tearDown(self):
         self.tmp.cleanup()
 
-    def run_stage(self, extra):
+    def run_stage(self, extra, source=None):
         buffer = io.StringIO()
         with contextlib.redirect_stdout(buffer):
-            code = load_stage().main(self.base_args + extra, source=FakeSource())
+            code = load_stage().main(self.base_args + extra, source=source or FakeSource())
         return code, buffer.getvalue()
 
     def test_normal_run_writes_clean_tables_only_for_valid_series(self):
         code, _ = self.run_stage([])
         self.assertEqual(code, 0)
         prices = pd.read_csv(self.processed / "prices_adj_close.csv", index_col="date", parse_dates=True)
-        self.assertEqual(list(prices.columns), ["good"])  # 'bad' has errors, 'nosym' has no symbol
+        self.assertEqual(list(prices.columns), ["good", "trim"])  # 'bad' has errors, 'nosym' has no symbol
+        self.assertGreaterEqual(prices["trim"].dropna().index.min(), pd.Timestamp("2020-01-01"))  # use_from applied
+        self.assertEqual(prices["good"].dropna().index.min(), pd.Timestamp("2018-01-01"))         # others untouched
 
         report = pd.read_csv(self.processed / "quality_report.csv").set_index("asset_id")
+        self.assertEqual(report.loc["good", "currency"], "EUR")
+        self.assertEqual(report.loc["trim", "use_from"], "2020-01-01")
         self.assertEqual(report.loc["bad", "status"], "error")
         self.assertEqual(report.loc["nosym", "status"], "no_symbol")
         self.assertIn(report.loc["good", "status"], ("ok", "warning"))
@@ -91,6 +106,8 @@ class TestStage01(unittest.TestCase):
         code, output = self.run_stage(["--probe"])
         self.assertEqual(code, 0)
         self.assertIn("TRY1", output)
+        self.assertIn("The Real Fund Name", output)   # the probe shows the fund name
+        self.assertIn("currency=EUR", output)          # and the quote currency
         self.assertFalse(self.processed.exists())
 
     def test_find_lists_listings_for_unconfirmed_assets_only(self):
@@ -100,6 +117,12 @@ class TestStage01(unittest.TestCase):
         self.assertIn("nosym", output)
         self.assertNotIn("[good]", output)  # confirmed assets are skipped
         self.assertFalse(self.processed.exists())
+
+    def test_find_searches_by_isin_and_by_name_and_merges_duplicates(self):
+        source = FakeSource()
+        _, output = self.run_stage(["--find"], source=source)
+        self.assertEqual(source.queries, ["XX0000000001", "NoSym"])   # ISIN first, then the name
+        self.assertEqual(output.count("FOUND.DE"), 1)                 # same symbol from both searches, shown once
 
     def test_unknown_asset_id_returns_error_code(self):
         code, _ = self.run_stage(["--assets", "does_not_exist"])

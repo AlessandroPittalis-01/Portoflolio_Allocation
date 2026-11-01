@@ -33,6 +33,7 @@ criteria:                       # [CALIBRATE] proposals, approve or change befor
 # --- Implementable core (max 6 risk ETFs + 1 cash-like) ---------------------------
 implementable:
   - id: dev_equity
+    accumulating: true
     category: world_developed
     risk_driver: developed equities
     name: iShares Core MSCI World UCITS ETF USD (Acc)
@@ -47,6 +48,7 @@ implementable:
     underlying_currency_note: "mostly USD (US weight around 70% per one aggregator: verify)"
 
   - id: em_equity
+    accumulating: true
     category: emerging_markets
     risk_driver: emerging equities
     name: iShares Core MSCI EM IMI UCITS ETF USD (Acc)
@@ -61,6 +63,7 @@ implementable:
     underlying_currency_note: "TWD, KRW, CNY, INR... (top currencies per one aggregator: verify)"
 
   - id: global_bond_hedged
+    accumulating: true
     category: global_bonds_hedged
     risk_driver: global bonds (EUR hedged)
     name: iShares Core Global Aggregate Bond UCITS ETF EUR Hedged (Acc)
@@ -71,11 +74,11 @@ implementable:
     base_currency: EUR
     hedged: true                # hedged to EUR, so EUR/PLN risk remains
     eur_listings: [AGGH (Xetra)]
-    yahoo_symbol: verify
-    yahoo_symbol_try: [AGGH.AS, AGGH.MI]   # AGGH.DE does NOT exist on Yahoo (probe, Oct 2026). Euronext Amsterdam (.AS) and Milan (.MI) are the next guesses
     alternative: "Vanguard Global Aggregate Bond UCITS ETF EUR Hedged Acc, TER ~0.08% (ISIN: verify)"
+    yahoo_symbol: EUNA.DE        # CONFIRMED by --find (Oct 2026): XETRA listing, the fund name is exactly this ETF (AGGH on other exchanges). History from 2017-11-21. Shorter on Yahoo: AGGH.AS (from 2021-05-17), AGGH.MI (from 2019-06-12)
 
   - id: inflation_linked
+    accumulating: true
     category: global_inflation_linked
     risk_driver: inflation-linked bonds (EUR hedged)
     name: iShares Global Inflation Linked Govt Bond UCITS ETF EUR Hedged (Acc)
@@ -90,6 +93,7 @@ implementable:
     history_proxy: "Distributing class IE00BD8PH174 (inception 2017-09-22, same strategy, TER 0.20%): declare as proxy"
 
   - id: gold
+    accumulating: true
     category: gold
     risk_driver: gold
     name: iShares Physical Gold ETC
@@ -105,6 +109,7 @@ implementable:
     alternative: "Xetra-Gold DE000A0S9GB0, TER ~0.36%, inception 2007-11, EUR (one source shows 0.00%: verify)"
 
   - id: cash_like
+    accumulating: true
     category: eur_overnight
     risk_driver: cash-like (used only for vol scaling)
     name: Xtrackers II EUR Overnight Rate Swap UCITS ETF 1C
@@ -121,8 +126,10 @@ implementable:
 # --- Research-only additions (more assets for correlations, clustering, FX studies) ---
 research_only:
   - id: global_bond_unhedged
+    accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: global_bonds_unhedged
     risk_driver: global bonds (unhedged)
+    yahoo_symbol: EUNU.DE        # CONFIRMED by --find: XETRA listing of the USD (Dist) fund; distributing, so use dividend-adjusted prices
     name: iShares Core Global Aggregate Bond UCITS ETF USD (Dist)
     isin: verify
     ter_pct: 0.10
@@ -131,138 +138,167 @@ research_only:
     note: "distributing: use total-return (dividend-adjusted) prices. No accumulating unhedged version found yet: verify."
 
   - id: europe_equity
+    accumulating: true
     category: europe_developed
     risk_driver: developed Europe equities
+    yahoo_symbol: VWCG.DE        # CONFIRMED by --find: XETRA listing; also VWCG.AS (Amsterdam) and VWCG.MI (Milan) exist
     name: Vanguard FTSE Developed Europe UCITS ETF EUR Accumulation
     isin: verify
     ter_pct: 0.10
     purpose: "regional split inside developed equities, EUR-native exposure"
 
   - id: eur_govt_bond
+    accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_govt_broad
     risk_driver: euro government bonds
-    yahoo_symbol: EUNA.DE        # CONFIRMED by probe (Oct 2026): 2270 rows from 2017-11-21. Flag 'stale_prices' to inspect.
     name: iShares Core EUR Govt Bond UCITS ETF
     isin: verify
-    ter_pct: 0.07               # one source only: verify
+    ter_pct: verify             # the earlier 0.07 came from one source only
     purpose: "domestic-currency-style bond comparison against global bonds"
 
   # ---- Candidates added from the reference list of categories (ISINs marked (m) are unverified) ----
+    search: "iShares Core € Govt Bond UCITS ETF"
+    yahoo_symbol: EUNH.DE        # CONFIRMED by --find: XETRA listing, name matches, DISTRIBUTING (Dist). Accumulating class: IEGS.MI (Milan). (EUNA.DE was given here by mistake: it is the global aggregate hedged fund)
   - id: acwi_ishares
+    accumulating: true
+    ter_pct: 0.2   # one aggregator page; verify on the KID
     category: all_country
     name: iShares MSCI ACWI UCITS ETF (Acc)
     risk_driver: global equities incl. emerging
-    isin: IE00B6R52259   # (m)
-    yahoo_symbol: verify
+    isin: IE00B6R52259   # verified: --find showed the expected fund name
+    yahoo_symbol: IUSQ.DE        # CONFIRMED by probe: name and currency (EUR) match. Quality check: price frozen for the first 116 days (2011-10-21 to 2012-04-02)
+    use_from: "2012-04-03"   # PROVISIONAL: the first 116 days show one identical price, so they are ignored. Check the first rows of data/raw/yahoo/IUSQ.DE.csv
   - id: allworld_vanguard
+    accumulating: true
+    ter_pct: 0.14   # one aggregator page; verify on the KID
     category: all_country
     name: Vanguard FTSE All-World UCITS ETF (USD) Accumulating
     risk_driver: global equities incl. emerging
-    isin: IE00BK5BQT80   # (m)
-    yahoo_symbol: verify
+    isin: IE00BK5BQT80   # verified: --find showed the expected fund name
+    yahoo_symbol: VWCE.DE        # CONFIRMED by probe: name and currency (EUR) match, status ok. VWCE.MI has the same fund but a stale run in Sept 2022
   - id: world_xtrackers
+    accumulating: true
+    ter_pct: 0.12   # one aggregator page; verify on the KID
     category: world_developed
     name: Xtrackers MSCI World UCITS ETF 1C
     risk_driver: developed equities
-    isin: IE00BJ0KDQ92   # (m)
-    yahoo_symbol: verify
+    isin: IE00BJ0KDQ92   # verified: --find showed the expected fund name
+    yahoo_symbol: XDWD.DE        # CONFIRMED by --find: XETRA listing
   - id: world_amundi
+    accumulating: true
+    ter_pct: 0.38   # one aggregator page; verify on the KID
     category: world_developed
     name: Amundi MSCI World UCITS ETF Acc
     risk_driver: developed equities
-    isin: LU1681043599   # (m)
-    yahoo_symbol: verify
+    isin: LU1681043599   # verified: --find showed the expected fund name
+    yahoo_symbol: CW8.PA        # CONFIRMED by --find: Paris listing, EUR; this is a SWAP-based fund (synthetic replication)
   - id: em_xtrackers
+    accumulating: true
     category: emerging_markets
     name: Xtrackers MSCI Emerging Markets UCITS ETF 1C
     risk_driver: emerging equities
-    isin: IE00BTJRMP35   # (m)
-    yahoo_symbol: verify
+    isin: IE00BTJRMP35   # verified: --find showed the expected fund name
+    yahoo_symbol: XMME.DE        # CONFIRMED by --find: XETRA listing
   - id: world_momentum
+    accumulating: true
     category: factor_momentum
     name: iShares Edge MSCI World Momentum Factor UCITS ETF
     risk_driver: momentum factor
-    isin: IE00BP3QZ825   # (m)
-    yahoo_symbol: verify
+    isin: IE00BP3QZ825   # verified: --find showed the expected fund name
+    yahoo_symbol: IS3R.DE        # CONFIRMED by --find: XETRA listing
   - id: world_quality
+    accumulating: true
     category: factor_quality
     name: iShares Edge MSCI World Quality Factor UCITS ETF
     risk_driver: quality factor
-    isin: IE00BP3QZ601   # (m)
-    yahoo_symbol: verify
+    isin: IE00BP3QZ601   # verified: --find showed the expected fund name
+    yahoo_symbol: IS3Q.DE        # CONFIRMED by --find: XETRA listing
   - id: world_low_vol
+    accumulating: true
     category: factor_low_volatility
     name: iShares Edge MSCI World Minimum Volatility UCITS ETF
     risk_driver: low volatility factor
-    isin: IE00B8FHGS14   # (m)
-    yahoo_symbol: verify
+    isin: IE00B8FHGS14   # verified: --find showed the expected fund name
+    yahoo_symbol: IQQ0.DE        # CONFIRMED by --find: XETRA listing of the USD (Acc) class. SXR0.DE is the EUR-hedged class
   - id: world_value
+    accumulating: true
     category: factor_value
     name: iShares Edge MSCI World Value Factor UCITS ETF
     risk_driver: value factor
-    isin: IE00BP3QZB59   # (m)
-    yahoo_symbol: verify
+    isin: IE00BP3QZB59   # verified: --find showed the expected fund name
+    yahoo_symbol: IS3S.DE        # CONFIRMED by --find: XETRA listing
   - id: world_small_cap
+    accumulating: true
     category: small_cap
     name: iShares MSCI World Small Cap UCITS ETF
     risk_driver: small caps
-    isin: IE00BF4RFH31   # (m)
-    yahoo_symbol: verify
+    isin: IE00BF4RFH31   # verified: --find showed the expected fund name
+    yahoo_symbol: IUSN.DE        # CONFIRMED by --find: XETRA listing
   - id: china_tech
+    accumulating: true
     category: china_technology
     name: China technology UCITS ETF (candidate not chosen yet)
     risk_driver: China technology equities
     isin: verify
     search: "China technology UCITS ETF"
-    yahoo_symbol: verify
+    yahoo_symbol: UIC2.DE        # CONFIRMED by --find: XETRA listing of the USD acc class (unhedged). The EUR-hedged class is UIC1.DE
   - id: world_health_care
+    accumulating: true
     category: sector_health_care
     name: Xtrackers MSCI World Health Care UCITS ETF 1C
     risk_driver: health care sector
-    isin: IE00BM67HK77   # (m)
-    yahoo_symbol: verify
+    isin: IE00BM67HK77   # verified: --find showed the expected fund name
+    yahoo_symbol: XDWH.DE        # CONFIRMED by --find: XETRA listing
   - id: world_staples
+    accumulating: true
     category: sector_consumer_staples
     name: Xtrackers MSCI World Consumer Staples UCITS ETF 1C
     risk_driver: consumer staples sector
-    isin: IE00BM67HN09   # (m)
-    yahoo_symbol: verify
+    isin: IE00BM67HN09   # verified: --find showed the expected fund name
+    yahoo_symbol: XDWS.DE        # CONFIRMED by --find: XETRA listing
   - id: europe_rafi
+    accumulating: true
     category: europe_fundamental
     name: Europe RAFI fundamental-weighted UCITS ETF (candidate not chosen yet)
     risk_driver: European equities, fundamental weighting
     isin: verify
-    search: "FTSE RAFI Europe UCITS ETF"
+    search: "RAFI Europe UCITS ETF"   # found nothing twice: it probably does not exist as a UCITS ETF on Yahoo. Check justETF, otherwise remove
     yahoo_symbol: verify
   - id: eur_corp_bonds
+    accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_corporate_bonds
     name: iShares Core EUR Corp Bond UCITS ETF
     risk_driver: euro investment-grade corporate bonds
-    isin: IE00B3F81R35   # (m)
-    yahoo_symbol: verify
+    isin: IE00B3F81R35   # verified: --find showed the expected fund name
+    yahoo_symbol: IEAC.AS        # CONFIRMED by probe: name and currency (EUR) match, status ok; DISTRIBUTING (Dist). IEAC.MI has a stale run in Sept 2022
   - id: eur_gov_7_10
+    accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_govt_7_10y
     name: iShares EUR Govt Bond 7-10yr UCITS ETF
     risk_driver: euro government bonds 7-10 years
     isin: verify
-    search: "iShares EUR Govt Bond 7-10yr UCITS ETF"
-    yahoo_symbol: verify
+    search: "iShares € Govt Bond 7-10yr UCITS ETF"   # Yahoo writes the euro sign: the old text found nothing
+    yahoo_symbol: IBCM.DE        # CONFIRMED by --find: XETRA listing; DISTRIBUTING (Dist). Also IBGM.AS (Amsterdam), IBGM.MI (Milan)
   - id: eur_high_yield
+    accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_high_yield
     name: iShares EUR High Yield Corp Bond UCITS ETF
     risk_driver: euro high-yield bonds
-    isin: IE00B66F4759   # (m)
-    yahoo_symbol: verify
+    isin: IE00B66F4759   # verified: --find showed the expected fund name
+    yahoo_symbol: IHYG.MI        # CONFIRMED by probe: name and currency (EUR) match; DISTRIBUTING (Dist). Only listing found. Flag: 15 identical closes in 2012 (2012-06-22 to 2012-07-12), not decided
   - id: eur_inflation_linked
+    accumulating: true
     category: eur_inflation_linked
     name: iShares EUR Inflation Linked Govt Bond UCITS ETF
     risk_driver: euro inflation-linked bonds
-    isin: IE00B0M62X26   # (m)
-    yahoo_symbol: verify
+    isin: IE00B0M62X26   # verified: --find showed the expected fund name
+    yahoo_symbol: IBCI.AS        # CONFIRMED by --find: Amsterdam listing, EUR, accumulating
   - id: us_short_treasury
+    accumulating: true
     category: us_short_treasury
     name: iShares USD Treasury Bond 0-1yr UCITS ETF
     risk_driver: US short-term treasuries (USD cash-like)
-    isin: IE00BGSF1X88   # (m)
-    yahoo_symbol: verify
+    isin: IE00BGSF1X88   # verified: --find showed the expected fund name
     note: "USD asset: adds dollar exposure even though it behaves like cash"
+    yahoo_symbol: IB01.L        # CONFIRMED by probe: name matches, currency USD (a USD asset on a London line). Quality check: a +1883.8% move on 2019-02-22, so the first rows are wrong
+    use_from: "2019-02-22"   # PROVISIONAL: rows before the jump are ignored. Check the first rows of data/raw/yahoo/IB01.L.csv

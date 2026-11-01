@@ -17,6 +17,7 @@ change ``start_date`` in settings.yaml, run the pipeline with ``--refresh``.
 
 from __future__ import annotations
 
+import json
 import re
 import time
 from pathlib import Path
@@ -83,3 +84,21 @@ def load_or_fetch(
     if len(df) > 0:
         write_cache(df, path)
     return df, "download"
+
+
+def load_currency(source: PriceSource, symbol: str, raw_dir: Path) -> str | None:
+    """Quote currency of a symbol, remembered in ``<symbol>.meta.json`` next to the cached prices.
+
+    The source is asked only the first time. If it cannot answer, nothing is stored and the next run asks again.
+    """
+    meta_path = cache_path(raw_dir, source.name, symbol).with_suffix(".meta.json")
+    if meta_path.exists():
+        try:
+            return json.loads(meta_path.read_text(encoding="utf-8")).get("currency")
+        except (OSError, ValueError):
+            pass  # a damaged side file is simply ignored and rebuilt below
+    currency = source.currency(symbol)
+    if currency:
+        meta_path.parent.mkdir(parents=True, exist_ok=True)
+        meta_path.write_text(json.dumps({"currency": currency}), encoding="utf-8")
+    return currency

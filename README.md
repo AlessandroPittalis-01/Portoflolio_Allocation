@@ -3,8 +3,8 @@
 A risk-first, multi-asset ETF portfolio allocation system in Python.
 Allocation is driven mainly by risk; forecasts are limited and can only tilt, not drive, decisions.
 
-> **Status: early development.** Done: investment policy, profile configuration, and pipeline stage 01 (data sourcing with cache and quality checks), all with tests.
-> Not built yet: stages 02-08 (selection, FX and returns, risk analysis, allocation, backtest, simulation, report). The rest of this README describes what is planned and is updated as each stage is built.
+> **Status: early development.** Done: investment policy, profile configuration, pipeline stage 01 (data sourcing with cache and quality checks) and stage 02 (selection of one ETF per category), all with tests.
+> Not built yet: stages 03-08 (FX and returns, risk analysis, allocation, backtest, simulation, report). The rest of this README describes what is planned and is updated as each stage is built.
 >
 > Methodological and educational project. Not financial advice.
 
@@ -42,7 +42,7 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | Stage | Script | Purpose | Status |
 |-------|--------|---------|--------|
 | 01 | `pipeline/01_sourcing.py` | download prices of ALL candidate ETFs (Yahoo), local cache, data-quality checks; `--find` and `--probe` help to confirm symbols | built |
-| 02 | `pipeline/02_selection.py` | pick the best candidate of each category, by criteria only (cost, size, history, data quality), never by performance | planned |
+| 02 | `pipeline/02_selection.py` | pick the best candidate of each category, by criteria only (cost, size, history, data quality), never by performance | done |
 | 03 | `pipeline/03_fx_returns.py` | NBP exchange rates, PLN returns, local vs FX decomposition | planned |
 | 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | planned |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | planned |
@@ -73,7 +73,7 @@ portfolio-risk-manager/
 
 ## Data and known limits
 
-Free data (Yahoo Finance through `yfinance`) is used for ETF prices, and the Polish central bank (NBP) for PLN exchange rates (stage 02).
+Free data (Yahoo Finance through `yfinance`) is used for ETF prices, and the Polish central bank (NBP) for PLN exchange rates (stage 03).
 Yahoo has no official API: it can rate-limit or change without notice, and its adjusted prices can differ from other sources. For this reason every download is cached, every series is quality-checked, problems are flagged and never fixed silently, and a second source is planned for cross-checks.
 Other limits: short ETF histories, different listing currencies, no quality guarantee. Any proxy used for older periods is declared explicitly. Do not use data from an employer's licensed terminals.
 
@@ -81,7 +81,7 @@ Other limits: short ETF histories, different listing currencies, no quality guar
 
 - [x] M0 — IPS draft, profile configuration, validated config loader with tests
 - [x] Stage 01 — sourcing: Yahoo source, cache, quality checks, tests (symbols of several assets still to be confirmed with `--probe`)
-- [ ] Stage 02 — selection of the best candidate per category
+- [x] Stage 02 — selection of the best candidate per category (criteria only)
 - [ ] Stage 03 — FX and PLN returns
 - [ ] Stage 04 — risk analysis
 - [ ] Stage 05 — allocation methods
@@ -112,7 +112,15 @@ python pipeline/01_sourcing.py --refresh        # ignore the cache
 python pipeline/01_sourcing.py --assets dev_equity,gold
 ```
 
-It writes `data/processed/prices_adj_close.csv` (one column per asset) and `data/processed/quality_report.csv` (status and issues per asset). Series with structural errors are excluded from the price table.
+It writes `data/processed/prices_adj_close.csv` (one column per asset) and `data/processed/quality_report.csv` (symbol, quote currency, status and issues per asset). Series with structural errors are excluded from the price table.
+
+Stage 02 (offline, uses the files written by stage 01). It picks one ETF per category by criteria only (accumulating, EUR listing, data quality, cost, history), never by performance:
+
+```bash
+python pipeline/02_selection.py
+```
+
+It writes `data/processed/selection.csv` (every candidate with its rank and the reason it was excluded, if any), `selected_assets.csv` (the winners) and `prices_selected.csv`, and prints a redundancy check on the winners.
 
 Load the investor profiles from Python:
 

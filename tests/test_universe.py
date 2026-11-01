@@ -32,6 +32,22 @@ class TestUniverse(unittest.TestCase):
         self.assertGreater(counts["world_developed"], 1)   # several candidates for one category
         self.assertGreaterEqual(len(counts), 19)           # the reference categories plus ours
 
+    def test_symbols_confirmed_with_find_are_in_the_file(self):
+        _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
+        by_id = {a.id: a for a in assets}
+        expected = {"global_bond_unhedged": "EUNU.DE", "europe_equity": "VWCG.DE", "world_amundi": "CW8.PA",
+                    "eur_inflation_linked": "IBCI.AS", "china_tech": "UIC2.DE", "eur_govt_bond": "EUNH.DE"}
+        for asset_id, symbol in expected.items():
+            self.assertEqual(by_id[asset_id].yahoo_symbol, symbol, asset_id)
+
+    def test_use_from_is_read_as_iso_date_and_validated(self):
+        path = write_yaml("implementable:\n  - {id: a, name: A, risk_driver: r, use_from: 2012-04-03}\n")
+        _, assets = load_universe(path)
+        self.assertEqual(assets[0].use_from, "2012-04-03")
+        bad = write_yaml("implementable:\n  - {id: a, name: A, risk_driver: r, use_from: not-a-date}\n")
+        with self.assertRaises(ValueError):
+            load_universe(bad)
+
     def test_assets_without_isin_can_be_searched_by_text(self):
         _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
         china = {a.id: a for a in assets}["china_tech"]
@@ -42,9 +58,19 @@ class TestUniverse(unittest.TestCase):
         _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
         by_id = {a.id: a for a in assets}
         self.assertEqual(by_id["em_equity"].yahoo_symbol, "IS3N.DE")
-        # AGGH.DE was tested and does not exist: the asset is still unconfirmed, with new guesses
-        self.assertIsNone(by_id["global_bond_hedged"].yahoo_symbol)
-        self.assertEqual(by_id["global_bond_hedged"].symbols_to_try, ("AGGH.AS", "AGGH.MI"))
+        # EUNA.DE is the XETRA line of the global aggregate EUR-hedged fund (it was wrongly given to eur_govt_bond)
+        self.assertEqual(by_id["global_bond_hedged"].yahoo_symbol, "EUNA.DE")
+        self.assertEqual(by_id["eur_govt_bond"].yahoo_symbol, "EUNH.DE")
+        self.assertEqual(by_id["acwi_ishares"].yahoo_symbol, "IUSQ.DE")
+        self.assertEqual(by_id["acwi_ishares"].use_from, "2012-04-03")   # provisional trim of a frozen start
+        self.assertEqual(by_id["us_short_treasury"].use_from, "2019-02-22")
+        self.assertIsNone(by_id["europe_rafi"].yahoo_symbol)             # the only asset still without a symbol
+
+    def test_same_symbol_on_two_assets_is_rejected(self):
+        item = "  - {id: %s, name: N, risk_driver: r, yahoo_symbol: SAME.DE}\n"
+        path = write_yaml("implementable:\n" + item % "a" + item % "b")
+        with self.assertRaises(ValueError):
+            load_universe(path)
 
     def test_verify_becomes_none(self):
         path = write_yaml("implementable:\n  - id: a\n    name: A\n    risk_driver: r\n    isin: verify\n")
