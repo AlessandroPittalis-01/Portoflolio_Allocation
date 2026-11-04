@@ -41,6 +41,7 @@
 | 22 | Selection rules | criteria-only ranking inside each category (stage 02; see section 9, 2026-11-01); performance never used | `[DECIDED]` |
 | 23 | Safe part of the portfolio | ETFs in EUR only; no PLN assets (Polish bonds, PLN money funds) for now. EUR/PLN risk is accepted and measured, not removed | `[DECIDED]` |
 | 24 | How risk is measured | in PLN, with EUR ETFs only; because EUR/PLN alone has 5-6% volatility, the owner target is raised from 7% to 9% (range 8-10%); the other profiles are shifted too (prudent 6.5%, balanced 9%, dynamic 12%) | `[DECIDED]` (owner chose option B, 2026-11-01) |
+| 25 | Allocation universe (stage 05) | 6 risky ETFs, one per risk driver, + cash-like: allworld_vanguard, eur_govt_bond, eur_corp_bonds, global_bond_hedged, inflation_linked, gold + cash_like. Fixed in `config/portfolio.yaml` BEFORE seeing any allocation result, without performance | `[PROPOSED]` |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
 actually tolerate is not implementable. The vol target must be consistent with the
@@ -369,6 +370,25 @@ Raw files are untouched. STILL OPEN: all four show +12.5% to +12.8% on 2017-06-0
 move) and IQQ0 shows +16.1% on 2025-10-24 followed by -13.8% on 2025-10-27 (a spike that reverses: a bad print). They are research-only
 ETFs, so they do not block stage 05. To inspect the raw rows around those dates before any of these four enters a final portfolio.
 
+### 2026-11-04 — Stage 04 re-run after the factor-ETF cleanup `[OBSERVED]`
+
+With `use_from` the factor ETFs drop from 24-29% to 14.7-18.8% annual volatility and the excess kurtosis falls from 100-220 to 10-17
+(low volatility stays at 60: the bad print of 2025-10-24 and the +12.5-12.8% move of 2017-06-05 on all four funds are still in the data, still OPEN).
+All other numbers of the previous entry are unchanged (data now run to 2026-11-02). Redundant pairs: World vs All-World 0.993, World vs Quality 0.982,
+EUR govt 7-10y vs broad 0.984.
+
+### 2026-11-04 — Stage 05 (allocation) built `[DECIDED]`
+
+Five methods on the 6 risky ETFs (equal weight, inverse volatility, risk parity/ERC, minimum variance with a cap, HRP), then SAME treatment for all:
+cap per ETF inside the risky mix, mix with the cash-like ETF to reach the profile's volatility target in PLN (largest share of risky ETFs with
+volatility <= target, no leverage, exact covariance because the cash ETF has 6% PLN volatility), then profile limits (max 40% per ETF, cash-like exempt;
+equity cap 50% for the owner; any excess goes to cash). The 60/40 benchmark (All-World + EUR government bonds) is shown untouched, as a reference.
+Covariance: Ledoit-Wolf, declared in advance (sample and EWMA available with `--cov`). No expected returns are used anywhere.
+The stage shows NO returns on purpose: only weights, volatility, risk shares, FX share, in-sample drawdown and ES. It is a snapshot over the common
+window of the 7 ETFs (limited by gold, about 5 years, one regime), so it describes the shape of each portfolio and proves nothing about performance.
+Cases not covered yet: minimum CVaR (needs scenarios, tier 2), Black-Litterman views, covariance re-estimated through time (that is the backtest, stage 06).
+If a method cannot reach the target without leverage the stage says so (status `below_target`), because comparing methods at different risk levels would break principle 1 of section 5.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -385,3 +405,4 @@ No backtest results yet.
 - v0.8 — first real run of stage 02 logged; stage 03 (NBP rates, PLN returns, FX variance share) built.
 - v0.9 — EUR-only decision; stage 03 live results (FX share); stage 04 risk analysis built.
 - v0.10 — stage 04 first run logged; decision 24 (risk in PLN, owner target 9%); `use_from` for four factor ETFs.
+- v0.11 — stage 04 re-run logged; stage 05 allocation built (5 methods, same target and limits, no returns shown); decision 25.

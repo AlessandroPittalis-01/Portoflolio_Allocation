@@ -1,0 +1,30 @@
+# config/portfolio.yaml  [PROPOSED]
+#
+# Which ETFs stage 05 may use. Rule (IPS decision 9): at most 6 risky ETFs + 1 cash-like ETF, ONE per risk driver,
+# chosen BEFORE looking at any allocation result and without looking at performance:
+#   equity world+EM ........ allworld_vanguard   (one global ETF; World + EM separately would be the same bet, corr 0.99)
+#   euro government rates .. eur_govt_bond
+#   euro credit ............. eur_corp_bonds
+#   global bonds (hedged) ... global_bond_hedged
+#   inflation ............... inflation_linked
+#   gold .................... gold
+# The cash-like ETF is used ONLY to scale the volatility to the target. In PLN it still has ~6% volatility
+# (all of it EUR/PLN), see IPS section 9.
+#
+# Factor and sector ETFs are research-only: they add little diversification (corr 0.97 with the market).
+# Changing this list after seeing results is data snooping: if you do, write the reason in the IPS.
+
+allocation:
+  universe:
+    - {id: allworld_vanguard, role: equity}
+    - {id: eur_govt_bond,     role: bond}
+    - {id: eur_corp_bonds,    role: bond}
+    - {id: global_bond_hedged, role: bond}
+    - {id: inflation_linked,  role: bond}
+    - {id: gold,              role: real}
+    - {id: cash_like,         role: cash}
+
+  benchmark_60_40: {equity: allworld_vanguard, bond: eur_govt_bond}
+
+  covariance: ledoit_wolf   # sample | ewma | ledoit_wolf   (declared in advance, not tuned)
+  ewma_lambda: 0.94
