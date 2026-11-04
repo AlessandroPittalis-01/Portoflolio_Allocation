@@ -12,6 +12,7 @@
 | `[DECIDED]` | stated by the project owner |
 | `[PROPOSED]` | suggested during design, not yet confirmed |
 | `[CALIBRATE]` | numeric hypothesis, to be checked against historical data |
+| `[SUPERSEDED]` / `[WITHDRAWN]` | replaced by a later decision / dropped by the owner |
 
 ## 2. Decision log
 
@@ -41,10 +42,10 @@
 | 22 | Selection rules | criteria-only ranking inside each category (stage 02; see section 9, 2026-11-01); performance never used | `[DECIDED]` |
 | 23 | Safe part of the portfolio | ETFs in EUR only; no PLN assets (Polish bonds, PLN money funds) for now. EUR/PLN risk is accepted and measured, not removed | `[DECIDED]` |
 | 24 | How risk is measured | in PLN, with EUR ETFs only; because EUR/PLN alone has 5-6% volatility, the owner target is raised from 7% to 9% (range 8-10%); the other profiles are shifted too (prudent 6.5%, balanced 9%, dynamic 12%) | `[DECIDED]` (owner chose option B, 2026-11-01) |
-| 25 | Allocation universe (stage 05) | 6 risky ETFs, one per risk driver, + cash-like: allworld_vanguard, eur_govt_bond, eur_corp_bonds, global_bond_hedged, inflation_linked, gold + cash_like. Fixed in `config/portfolio.yaml` BEFORE seeing any allocation result, without performance | `[PROPOSED]` |
-| 26 | Who chooses the ETFs | the ALLOCATOR chooses, not us: stage 02 only removes ineligible ETFs and duplicates of the same index; at each date, using only data available up to then, the allocator clusters the candidates by correlation, keeps one representative (medoid) per cluster, and applies risk budgets by class with at most 6 risky ETFs and a stability rule (no switch for a small advantage). Never uses returns | `[PROPOSED]` (owner asked for it on 2026-11-04; method to confirm) |
-| 27 | Proxies for short histories | young ETFs get their early history from a declared proxy (same fund on another listing, or same strategy in another share class), validated on the overlap, always labelled in the results; goal: cover the COVID crash (Feb-Mar 2020). Proxies are never selectable | `[PROPOSED]` |
-| 28 | Risk budgets by class | policy numbers written in the IPS BEFORE looking at results (to define); they set how much growth risk the portfolio takes | `[PROPOSED]` |
+| 25 | Allocation universe (stage 05) | SUPERSEDED by 26: the 6 ETFs are no longer listed by hand | `[SUPERSEDED]` |
+| 26 | Who chooses the ETFs | the code, by mathematical rules in `src/prm/allocation/choose.py`, never by performance. (1) eligible = `core` in the universe file, winner of its category in stage 02, EUR-quoted, usable data, history >= 5y; (2) cash = eligible cash-like ETF with the lowest PLN volatility; (3) inside each class (equity, bond, real) ETFs with correlation >= 0.90 (local-currency returns, average-linkage clusters) are the same exposure: only the medoid can enter; (4) groups are ordered: largest first, then maximin (lowest max correlation with the chosen ones); (5) max ETFs per class equity 2 / bond 3 / real 1, total <= 6; ties by id. Parameters in `config/portfolio.yaml`. Still to do in stage 06: repeat the choice inside the walk-forward with past data only, plus a stability rule | `[DECIDED]` (owner asked 2026-11-04: concentrated portfolio, ~6 ETFs, mathematical choice) |
+| 27 | Proxies for short histories | WITHDRAWN by the owner on 2026-11-04: no proxies, only real data. Consequence: the common window starts 2021-07-19 and does NOT contain the COVID crash for gold and inflation-linked | `[WITHDRAWN]` |
+| 28 | Risk budgets by class | equity 50% / bond 35% / real (gold) 15% of the portfolio RISK (not of the capital). Split equally among the ETFs of a class. Owner approved the numbers on 2026-11-04; reading as RISK shares to be confirmed by the owner. They are policy numbers, not tuned on results; the volatility target, the 40% cap and the equity cap 50% still apply on top | `[DECIDED]` (risk-share reading `[PROPOSED]`) |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
 actually tolerate is not implementable. The vol target must be consistent with the
@@ -423,6 +424,9 @@ inflation-linked (Dist class of the same fund) are in the file, symbols still to
 
 No backtest results yet.
 
+### 2026-11-04 — ETF choice by rule and class risk budgets built `[DECIDED]`
+Proxies removed from code and universe (decision 27 withdrawn). Every candidate now has `asset_class` and `core` (13 non-core, each with its reason in the YAML). `choose.py` picks the ETFs of each class by correlation groups, medoid and maximin (decision 26); stage 05 writes `etf_choice.csv` with the reason for every candidate and adds the `risk_budget` method (equity 50 / bond 35 / real 15, decision 28). The 60/40 benchmark is now 60% equity ETFs + 40% bond ETFs chosen by the same rules. Not yet run on real data: the first real result will be logged here. Limit to remember: with one window of about 5 years (one regime, 2022) the choice can change if the window changes; stage 06 must repeat it with past data only.
+
 ## 10. Changelog
 
 - v0.1 — first draft from design conversation.
@@ -440,3 +444,4 @@ No backtest results yet.
 - v0.11 — stage 04 re-run logged; stage 05 allocation built (5 methods, same target and limits, no returns shown); decision 25.
 - v0.12 — stage 05 first real run logged: target not reached by risk-based methods, FX limit and drawdown thresholds in conflict with the universe.
 - v0.13 — decisions 26-28 proposed (allocator chooses ETFs, proxies, class risk budgets); risk budgeting and `proxy_for` built.
+- v0.14 — decision 26 decided (rule-based choice per class), 27 withdrawn (no proxies), 28 decided (risk budgets 50/35/15); `choose.py`, `asset_class`/`core` labels, `risk_budget` method in stage 05; proxy code removed.

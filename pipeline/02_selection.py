@@ -49,7 +49,6 @@ def main(argv: list[str] | None = None) -> int:
         return 1
 
     criteria, assets = load_universe(args.universe)
-    assets = [a for a in assets if not a.proxy_for]   # proxies only extend a history, they are never a candidate
     report = pd.read_csv(report_path)
     table = select_per_category(build_candidates(assets, report), criteria)
     winners = table[table["selected"]].copy()

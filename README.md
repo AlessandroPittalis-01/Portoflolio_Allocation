@@ -137,14 +137,14 @@ python pipeline/04_risk_analysis.py
 python pipeline/04_risk_analysis.py --assets allworld_vanguard,global_bond_hedged,gold,cash_like   # longer common window
 ```
 
-Stage 05 (offline). Computes the weights of five allocation methods under the same volatility target and limits (in PLN), for a chosen profile:
+Stage 05 (offline). Chooses the ETFs of each class by mathematical rules (`src/prm/allocation/choose.py`: eligibility, correlation groups, medoid, maximin) and computes the weights of six allocation methods (including `risk_budget`: equity 50 / bond 35 / gold 15 as shares of risk) under the same volatility target and limits (in PLN), for a chosen profile:
 
 ```bash
 python pipeline/05_allocation.py                            # owner profile
 python pipeline/05_allocation.py --profile prudent --cov ewma
 ```
 
-It prints weights, volatility, risk shares, FX share and in-sample drawdown, and writes `allocation_weights.csv`, `allocation_summary.csv`, `allocation_risk_shares.csv`. It shows no returns on purpose: it is a snapshot, not a performance test. The ETFs used are listed in `config/portfolio.yaml`.
+It prints weights, volatility, risk shares, FX share and in-sample drawdown, and writes `etf_choice.csv` (why each candidate was chosen or not), `allocation_weights.csv`, `allocation_summary.csv`, `allocation_risk_shares.csv`. It shows no returns on purpose: it is a snapshot, not a performance test. Class budgets and choice rules are in `config/portfolio.yaml`; it needs the output of stage 02 (`selection.csv`).
 
 Load the investor profiles from Python:
 

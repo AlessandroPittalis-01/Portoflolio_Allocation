@@ -1,13 +1,18 @@
 """Stage 05 - allocation methods under the SAME volatility target and the SAME limits.
 
-Reads  : data/processed/returns_pln.csv, returns_local.csv (stage 03), config/portfolio.yaml, config/profiles.yaml
-Writes : data/processed/allocation_weights.csv    final weights of each method (cash included)
+Reads  : data/processed/returns_pln.csv, returns_local.csv (stage 03), selection.csv (stage 02),
+         config/universe_candidates.yaml, config/portfolio.yaml, config/profiles.yaml
+Writes : data/processed/etf_choice.csv            which ETFs were chosen in each class, and why (rules: choose.py)
+         data/processed/allocation_weights.csv    final weights of each method (cash included)
          data/processed/allocation_summary.csv    one row per method: risk, limits, FX share, drawdown
          data/processed/allocation_risk_shares.csv  share of risk carried by each ETF, per method
 
-Methods: equal weight, inverse volatility, risk parity (ERC), minimum variance (capped), HRP.
+ETF choice: the owner fixes the classes and their risk budgets (equity 50 / bond 35 / real 15, as shares of RISK);
+the ETFs of each class are chosen by a mathematical rule (correlation groups, medoid, maximin), see choose.py.
+
+Methods: equal weight, inverse volatility, risk parity (ERC), risk budget (50/35/15), minimum variance (capped), HRP.
 Each gives weights for the risky ETFs; then the mix with the cash-like ETF is scaled to the profile's volatility
-target (no leverage) and the profile limits are applied. The 60/40 benchmark is shown as it is, with no targeting.
+target (no leverage) and the profile limits are applied. The 60/40 benchmark (60% equity ETFs, 40% bond ETFs, equal inside) is shown as it is, with no targeting.
 
 HOW TO READ THE RESULT (important)
 * It is a SNAPSHOT with all the data of the common window (about 5 years, including 2022). It is in-sample.
@@ -29,15 +34,20 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
+from prm.allocation.budgets import asset_budgets  # noqa: E402
+from prm.allocation.choose import choose_etfs  # noqa: E402
 from prm.allocation.spec import DEFAULT_PORTFOLIO_PATH, load_portfolio  # noqa: E402
 from prm.allocation.targeting import enforce_limits, portfolio_vol, scale_to_target_vol  # noqa: E402
-from prm.allocation.weights import cap_weights, equal_weight, hrp, inverse_vol, min_variance, risk_parity  # noqa: E402
+from prm.allocation.weights import (  # noqa: E402
+    cap_weights, equal_weight, hrp, inverse_vol, min_variance, risk_budget, risk_parity,
+)
 from prm.config import DEFAULT_PROFILES_PATH, DEFAULT_SETTINGS_PATH, load_data_settings, load_profiles  # noqa: E402
+from prm.data.universe import DEFAULT_UNIVERSE_PATH, load_universe  # noqa: E402
 from prm.risk.contributions import risk_contributions  # noqa: E402
 from prm.risk.covariance import annualise, common_window, ewma_cov, ledoit_wolf, sample_cov  # noqa: E402
 from prm.risk.metrics import hist_var_es, max_drawdown  # noqa: E402
 
-METHODS = ("equal_weight", "inverse_vol", "risk_parity", "min_variance", "hrp")
+METHODS = ("equal_weight", "inverse_vol", "risk_parity", "risk_budget", "min_variance", "hrp")
 
 
 def _estimate_cov(window: pd.DataFrame, kind: str, lam: float) -> pd.DataFrame:
@@ -48,13 +58,15 @@ def _estimate_cov(window: pd.DataFrame, kind: str, lam: float) -> pd.DataFrame:
     return ledoit_wolf(window)[0]
 
 
-def _raw_weights(method: str, sleeve_cov: pd.DataFrame, max_weight: float) -> pd.Series:
+def _raw_weights(method: str, sleeve_cov: pd.DataFrame, max_weight: float, budgets: pd.Series) -> pd.Series:
     if method == "equal_weight":
         return equal_weight(sleeve_cov)
     if method == "inverse_vol":
         return inverse_vol(sleeve_cov)
     if method == "risk_parity":
         return risk_parity(sleeve_cov)
+    if method == "risk_budget":
+        return risk_budget(sleeve_cov, budgets)
     if method == "min_variance":
         return min_variance(sleeve_cov, max_weight)
     return hrp(sleeve_cov)
@@ -74,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--settings", default=str(DEFAULT_SETTINGS_PATH))
     parser.add_argument("--profiles", default=str(DEFAULT_PROFILES_PATH))
     parser.add_argument("--portfolio", default=str(DEFAULT_PORTFOLIO_PATH))
+    parser.add_argument("--universe", default=str(DEFAULT_UNIVERSE_PATH))
     parser.add_argument("--profile", default="owner", help="prudent, balanced, dynamic or owner")
     parser.add_argument("--cov", default="", help="sample, ewma or ledoit_wolf (default: the one in portfolio.yaml)")
     args = parser.parse_args(argv)
@@ -92,11 +105,35 @@ def main(argv: list[str] | None = None) -> int:
 
     pln = pd.read_csv(processed / "returns_pln.csv", index_col="date", parse_dates=True)
     local = pd.read_csv(processed / "returns_local.csv", index_col="date", parse_dates=True)
-    ids = list(spec.roles)
-    missing = [a for a in ids if a not in pln.columns or a not in local.columns]
-    if missing:
-        print(f"Assets of config/portfolio.yaml not found in the stage-03 files: {missing}")
+    if not (processed / "selection.csv").exists():
+        print("Missing stage-02 output. Run first:  python pipeline/02_selection.py")
         return 1
+    _, assets = load_universe(args.universe)
+    meta = pd.read_csv(processed / "selection.csv").set_index("asset_id")
+    meta["asset_class"] = {a.id: a.asset_class for a in assets}
+    meta["core"] = {a.id: a.core for a in assets}
+    meta = meta[meta["asset_class"].notna()]
+    meta["core"] = meta["core"].astype(bool)
+    meta["selected"] = meta["selected"].astype(bool)
+    meta["excluded_because"] = meta["excluded_because"].fillna("")
+
+    # ---- which ETFs? (rules in choose.py, no performance used) ---------------------------------------
+    choice = choose_etfs(local, pln, meta, spec.rules)
+    choice.to_csv(processed / "etf_choice.csv", index=False)
+    risky = choice[choice["decision"] == "chosen"].sort_values(["asset_class", "order"])
+    cash_rows = choice[choice["decision"] == "cash"]
+    missing_cls = [c for c in spec.class_budgets if c not in set(risky["asset_class"])]
+    if cash_rows.empty or not {"equity", "bond"} <= set(risky["asset_class"]):
+        print("The choice rules left no cash-like ETF, or no equity / bond ETF. See etf_choice.csv.")
+        print(choice[choice["decision"] != "chosen"].to_string(index=False))
+        return 1
+    cash_id = str(cash_rows["asset_id"].iloc[0])
+    roles = dict(zip(risky["asset_id"], risky["asset_class"]))
+    roles[cash_id] = "cash"
+    ids = list(roles)
+    risky_ids = [a for a in ids if a != cash_id]
+    budgets = asset_budgets({a: roles[a] for a in risky_ids}, spec.class_budgets)
+
     window = common_window(pln[ids])
     if len(window) < 500:
         print(f"Common window has only {len(window)} days: too short.")
@@ -106,19 +143,20 @@ def main(argv: list[str] | None = None) -> int:
 
     cov_daily = _estimate_cov(pln, cov_kind, spec.ewma_lambda)
     cov = annualise(cov_daily)
-    risky = spec.risky_ids
-    sleeve_cov = cov.loc[risky, risky]
+    sleeve_cov = cov.loc[risky_ids, risky_ids]
 
     weights: dict[str, pd.Series] = {}
     status: dict[str, tuple[float, str]] = {}
     for method in METHODS:
-        raw = _raw_weights(method, sleeve_cov, profile.max_weight_per_etf)
+        raw = _raw_weights(method, sleeve_cov, profile.max_weight_per_etf, budgets)
         capped = cap_weights(raw, profile.max_weight_per_etf)
-        scaled, k, st = scale_to_target_vol(capped, cov, spec.cash_id, profile.target_vol)
-        weights[method] = enforce_limits(scaled, spec.roles, profile.max_weight_per_etf, profile.equity_cap, spec.cash_id)
+        scaled, k, st = scale_to_target_vol(capped, cov, cash_id, profile.target_vol)
+        weights[method] = enforce_limits(scaled, roles, profile.max_weight_per_etf, profile.equity_cap, cash_id)
         status[method] = (k, st)
-    bench = pd.Series(0.0, index=ids)
-    bench[spec.benchmark_equity], bench[spec.benchmark_bond] = 0.6, 0.4
+    bench = pd.Series(0.0, index=ids)                    # 60% equity ETFs + 40% bond ETFs, equal inside the class
+    for cls, share in (("equity", 0.6), ("bond", 0.4)):
+        members = [a for a in risky_ids if roles[a] == cls]
+        bench[members] = share / len(members)
     weights["benchmark_60_40"] = bench
     status["benchmark_60_40"] = (1.0, "no_targeting")
 
@@ -131,7 +169,7 @@ def main(argv: list[str] | None = None) -> int:
         port = pln @ w
         dd = max_drawdown(port)
         _, es99 = hist_var_es(port, 0.99)
-        equity_w = float(sum(w[a] for a in ids if spec.roles[a] == "equity"))
+        equity_w = float(sum(w[a] for a in ids if roles[a] == "equity"))
         rows.append({
             "method": method,
             "risky_share_k": status[method][0],
@@ -139,8 +177,8 @@ def main(argv: list[str] | None = None) -> int:
             "vol_model": portfolio_vol(w, cov),
             "vol_realised": float(port.std() * np.sqrt(252)),
             "equity_w": equity_w,
-            "cash_w": float(w[spec.cash_id]),
-            "max_weight": float(w.drop(spec.cash_id).max()),
+            "cash_w": float(w[cash_id]),
+            "max_weight": float(w.drop(cash_id).max()),
             "effective_n": float(1.0 / (w ** 2).sum()),
             "max_risk_share": float(rc["risk_share"].max()),
             "fx_share": _fx_share(w, pln, local),
@@ -159,7 +197,12 @@ def main(argv: list[str] | None = None) -> int:
     print(f"\nProfile '{args.profile}': target volatility {profile.target_vol:.1%} (PLN), max {profile.max_weight_per_etf:.0%} per ETF, "
           f"equity cap {profile.equity_cap:.0%}")
     print(f"Window: {pln.index.min().date()} to {pln.index.max().date()} ({len(pln)} days). Covariance: {cov_kind}. "
-          f"Cash-like ETF: {spec.cash_id} (volatility scaling only)")
+          f"Cash-like ETF: {cash_id} (volatility scaling only)")
+    print(f"\nWHY THESE ETFs (rules: eligible -> correlation >= {spec.rules.rho_max:.2f} = same exposure -> most central "
+          f"-> most different; class risk budgets {spec.class_budgets})\n")
+    print(choice[["asset_class", "asset_id", "decision", "reason"]].sort_values(["asset_class", "decision", "asset_id"]).to_string(index=False))
+    for cls in missing_cls:
+        print(f"\nNOTE: no ETF could be chosen for the class '{cls}': its risk budget is split among the other classes.")
     print("\nFINAL WEIGHTS (%)\n")
     print(pct(w_table).to_string())
     show = summary.copy()
@@ -177,7 +220,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"\nNOTE {r.method}: {r.status} -> "
               + ("cannot add risk without leverage, volatility stays under the target." if r.status == "below_target"
                  else "even the lowest-risk mix is above the target."))
-    print("\nWrote allocation_weights.csv, allocation_summary.csv, allocation_risk_shares.csv in", processed)
+    print("\nWrote etf_choice.csv, allocation_weights.csv, allocation_summary.csv, allocation_risk_shares.csv in", processed)
     return 0
 
 

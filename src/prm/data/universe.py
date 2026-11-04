@@ -37,7 +37,8 @@ class Asset:
     use_from: str | None             # ISO date: ignore earlier rows (a documented decision, see IPS log)
     accumulating: bool | None = None  # True = reinvests income (Acc), False = pays it out (Dist), None = unknown
     ter_pct: float | None = None      # annual cost in percent (0.20 = 0.20%); None = not verified yet
-    proxy_for: str | None = None      # id of the asset whose missing early history this series replaces (never a selectable ETF)
+    asset_class: str | None = None    # equity, bond, real or cash: the class that has a risk budget (IPS decision 28)
+    core: bool = False                # True = may enter the portfolio: broad index, EUR-based (policy, see core_note in the YAML)
 
 
 def _known(value) -> str | None:
@@ -46,6 +47,18 @@ def _known(value) -> str | None:
         return None
     text = str(value).strip()
     return None if text.lower() in ("", "verify", "n/a") else text
+
+
+ASSET_CLASSES = ("equity", "bond", "real", "cash")
+
+
+def _class_or_none(value, asset_id: str) -> str | None:
+    """Read the asset class; anything outside the four known classes is an error, never a guess."""
+    if value is None:
+        return None
+    if value not in ASSET_CLASSES:
+        raise ValueError(f"asset '{asset_id}': asset_class must be one of {ASSET_CLASSES}, got '{value}'")
+    return str(value)
 
 
 def _bool_or_none(value) -> bool | None:
@@ -111,7 +124,8 @@ def load_universe(path: Path | str = DEFAULT_UNIVERSE_PATH) -> tuple[dict, list[
                     use_from=_iso_date_or_none(item.get("use_from")),
                     accumulating=_bool_or_none(item.get("accumulating")),
                     ter_pct=_float_or_none(item.get("ter_pct")),
-                    proxy_for=_known(item.get("proxy_for")),
+                    asset_class=_class_or_none(item.get("asset_class"), item["id"]),
+                    core=bool(_bool_or_none(item.get("core"))),
                 )
             )
 
@@ -124,12 +138,5 @@ def load_universe(path: Path | str = DEFAULT_UNIVERSE_PATH) -> tuple[dict, list[
                     f"symbol {asset.yahoo_symbol} is assigned to both '{owner[asset.yahoo_symbol]}' and '{asset.id}'"
                 )
             owner[asset.yahoo_symbol] = asset.id
-
-    ids = {a.id for a in assets}
-    for asset in assets:
-        if asset.proxy_for and asset.proxy_for not in ids:
-            raise ValueError(f"proxy '{asset.id}' points to the unknown asset '{asset.proxy_for}'")
-        if asset.proxy_for == asset.id:
-            raise ValueError(f"proxy '{asset.id}' cannot be a proxy for itself")
 
     return raw.get("criteria") or {}, assets

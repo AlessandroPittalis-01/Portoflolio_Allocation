@@ -100,18 +100,19 @@ if __name__ == "__main__":
     unittest.main()
 
 
-class TestProxies(unittest.TestCase):
-    def test_proxies_in_the_real_file_point_to_young_etfs(self):
+class TestAssetClassAndCore(unittest.TestCase):
+    def test_every_real_asset_has_a_class_and_core_assets_are_labelled(self):
         _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
-        by_id = {a.id: a for a in assets}
-        self.assertEqual(by_id["proxy_gold"].proxy_for, "gold")
-        self.assertEqual(by_id["proxy_inflation_linked"].proxy_for, "inflation_linked")
-        self.assertIsNone(by_id["gold"].proxy_for)
+        self.assertTrue(all(a.asset_class in ("equity", "bond", "real", "cash") for a in assets))
+        core = [a for a in assets if a.core]
+        for cls in ("equity", "bond", "real", "cash"):
+            self.assertTrue(any(a.asset_class == cls for a in core), cls)
+        self.assertFalse(any(a.core for a in assets if a.id.startswith("world_momentum")))
 
-    def test_proxy_to_unknown_or_to_itself_is_rejected(self):
-        base = "implementable:\n  - {id: a, name: A, risk_driver: r, yahoo_symbol: AAA}\nresearch_only:\n"
-        for line, word in (("  - {id: p, name: P, risk_driver: r, proxy_for: nope}\n", "unknown"),
-                           ("  - {id: p, name: P, risk_driver: r, proxy_for: p}\n", "itself")):
-            with self.assertRaises(ValueError) as ctx:
-                load_universe(write_yaml(base + line))
-            self.assertIn(word, str(ctx.exception))
+    def test_unknown_class_is_rejected(self):
+        import tempfile
+        from pathlib import Path
+        path = Path(tempfile.mkdtemp()) / "u.yaml"
+        path.write_text("criteria: {}\nimplementable:\n  - id: x\n    asset_class: magic\n    category: c\n")
+        with self.assertRaises(ValueError):
+            load_universe(path)

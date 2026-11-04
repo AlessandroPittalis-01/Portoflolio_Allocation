@@ -144,23 +144,26 @@ class TestTargeting(unittest.TestCase):
 
 
 class TestSpec(unittest.TestCase):
-    def test_real_file_loads_and_ids_exist_in_the_universe(self):
+    BASE = ("allocation:\n  class_budgets: {equity: 0.5, bond: 0.35, real: 0.15}\n"
+            "  max_etfs: {equity: 2, bond: 3, real: 1}\n  selection: {rho_max: 0.9}\n")
+
+    def test_real_file_loads_and_matches_the_ips(self):
         spec = load_portfolio(DEFAULT_PORTFOLIO_PATH)
-        _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
-        known = {a.id for a in assets}
-        self.assertTrue(set(spec.roles) <= known)
-        self.assertLessEqual(len(spec.risky_ids), 6)           # IPS decision 9
-        self.assertEqual(spec.roles[spec.cash_id], "cash")
+        self.assertEqual(spec.class_budgets, {"equity": 0.5, "bond": 0.35, "real": 0.15})      # IPS decision 28
+        self.assertLessEqual(sum(spec.rules.max_etfs.values()), 6)                           # IPS decision 9
+        self.assertEqual(spec.rules.currency, "EUR")                                         # IPS decision 23
 
     def test_bad_specs_are_rejected(self):
-        base = ("allocation:\n  universe:\n    - {id: a, role: equity}\n    - {id: b, role: bond}\n    - {id: c, role: bond}\n"
-                "    - {id: d, role: real}\n    - {id: cash, role: cash}\n  benchmark_60_40: {equity: a, bond: b}\n")
-        bads = [base.replace("role: cash}", "role: bond}"),            # no cash
-                base.replace("role: real", "role: magic"),             # unknown role
-                base.replace("{id: d, role: real}", "{id: a, role: real}"),   # duplicate id
-                base.replace("equity: a, bond: b", "equity: b, bond: b"),     # benchmark legs wrong
-                base + "  covariance: nope\n",
-                base.replace("    - {id: c, role: bond}\n    - {id: d, role: real}\n", "")]   # too few risky
+        b = self.BASE
+        bads = [b.replace("0.15", "0.30"),                                   # budgets do not add up to 1
+                b.replace("real: 0.15", "real: 0.0").replace("bond: 0.35", "bond: 0.5"),   # zero budget
+                b.replace("real: 0.15", "crypto: 0.15"),                     # unknown class
+                b.replace("bond: 0.35, real: 0.15", "real: 0.5"),            # no bond class
+                b.replace("equity: 2", "equity: 0"),                         # no ETF allowed
+                b.replace("equity: 2, bond: 3", "equity: 4, bond: 3"),       # more than 6 in total
+                b.replace("rho_max: 0.9", "rho_max: 1.5"),
+                b + "  covariance: nope\n",
+                "allocation: {}\n"]
         for text in bads:
             path = Path(tempfile.mkdtemp()) / "p.yaml"
             path.write_text(text)
@@ -169,6 +172,8 @@ class TestSpec(unittest.TestCase):
 
 
 class TestStage05(unittest.TestCase):
+    VOLS = {"eq1": 0.010, "eq2": 0.0105, "eq3": 0.0095, "b1": 0.004, "b2": 0.005, "gld": 0.009, "cash": 0.0003}
+
     def setUp(self):
         self.tmp = Path(tempfile.mkdtemp())
         self.processed = self.tmp / "processed"
@@ -177,12 +182,21 @@ class TestStage05(unittest.TestCase):
             f'data:\n  start_date: "2018-01-01"\n  raw_dir: {self.tmp / "raw"}\n  processed_dir: {self.processed}\n'
             "  max_cache_age_days: 1\nquality:\n  max_daily_move: 0.12\n  max_gap_days: 7\n  max_stale_days: 5\n")
         (self.tmp / "portfolio.yaml").write_text(
-            "allocation:\n  universe:\n    - {id: eq, role: equity}\n    - {id: b1, role: bond}\n    - {id: b2, role: bond}\n"
-            "    - {id: gld, role: real}\n    - {id: cash, role: cash}\n  benchmark_60_40: {equity: eq, bond: b1}\n")
+            "allocation:\n  class_budgets: {equity: 0.5, bond: 0.35, real: 0.15}\n  max_etfs: {equity: 2, bond: 2, real: 1}\n"
+            "  selection: {rho_max: 0.9, min_overlap_days: 500, min_history_years: 5}\n")
+        classes = {"eq1": "equity", "eq2": "equity", "eq3": "equity", "b1": "bond", "b2": "bond", "gld": "real", "cash": "cash"}
+        lines = ["criteria: {}", "implementable:"]
+        for i, c in classes.items():
+            lines += [f"  - id: {i}", f"    name: {i}", f"    risk_driver: {c}", f"    asset_class: {c}", "    core: true", f"    category: cat_{i}", f"    yahoo_symbol: {i.upper()}.DE"]
+        (self.tmp / "universe.yaml").write_text("\n".join(lines) + "\n")
+        pd.DataFrame({"asset_id": list(classes), "selected": True, "currency": "EUR", "n_warnings": 0, "history_years": 6.0,
+                      "excluded_because": ""}).to_csv(self.processed / "selection.csv", index=False)
         rng = np.random.default_rng(0)
         idx = pd.bdate_range("2019-01-01", "2024-12-31", name="date")
-        vols = {"eq": 0.010, "b1": 0.004, "b2": 0.005, "gld": 0.009, "cash": 0.0003}
-        local = pd.DataFrame({k: rng.normal(0.0002, v, len(idx)) for k, v in vols.items()}, index=idx)
+        market = rng.normal(0.0002, 0.009, len(idx))
+        local = pd.DataFrame({k: rng.normal(0.0002, v, len(idx)) for k, v in self.VOLS.items()}, index=idx)
+        for k in ("eq1", "eq2", "eq3"):                       # three versions of the same market
+            local[k] = market + rng.normal(0, 0.0015, len(idx))
         fx = rng.normal(0, 0.0035, len(idx))
         pln = (1 + local).mul(1 + fx, axis=0) - 1
         local.to_csv(self.processed / "returns_local.csv")
@@ -194,7 +208,8 @@ class TestStage05(unittest.TestCase):
         spec.loader.exec_module(module)
         buf = io.StringIO()
         with contextlib.redirect_stdout(buf):
-            code = module.main(["--settings", str(self.tmp / "settings.yaml"), "--portfolio", str(self.tmp / "portfolio.yaml"), *extra])
+            code = module.main(["--settings", str(self.tmp / "settings.yaml"), "--portfolio", str(self.tmp / "portfolio.yaml"),
+                                "--universe", str(self.tmp / "universe.yaml"), *extra])
         return code, buf.getvalue()
 
     def test_end_to_end_respects_limits_and_target(self):
@@ -202,16 +217,22 @@ class TestStage05(unittest.TestCase):
         self.assertEqual(code, 0, out)
         w = pd.read_csv(self.processed / "allocation_weights.csv", index_col="method")
         s = pd.read_csv(self.processed / "allocation_summary.csv").set_index("method")
-        self.assertEqual(set(w.index), {"equal_weight", "inverse_vol", "risk_parity", "min_variance", "hrp", "benchmark_60_40"})
+        self.assertEqual(set(w.index), {"equal_weight", "inverse_vol", "risk_parity", "risk_budget", "min_variance", "hrp", "benchmark_60_40"})
         self.assertTrue(np.allclose(w.sum(axis=1), 1.0))
         self.assertTrue((w >= -1e-9).all().all())                            # long only, no leverage
-        for method in ("equal_weight", "inverse_vol", "risk_parity", "min_variance", "hrp"):
+        for method in ("equal_weight", "inverse_vol", "risk_parity", "risk_budget", "min_variance", "hrp"):
             self.assertLessEqual(s.loc[method, "vol_model"], 0.09 + 1e-6, method)   # never above the owner target
             self.assertLessEqual(s.loc[method, "equity_w"], 0.50 + 1e-9)              # equity cap
             self.assertLessEqual(w.loc[method].drop("cash").max(), 0.40 + 1e-9)       # max weight per ETF
-        self.assertAlmostEqual(w.loc["benchmark_60_40", "eq"], 0.6)                   # benchmark left untouched
+        chosen = pd.read_csv(self.processed / "etf_choice.csv").set_index("asset_id")
+        self.assertEqual(sum(chosen.loc[["eq1", "eq2", "eq3"], "decision"] == "chosen"), 1)   # 3 clones -> 1 ETF
+        eq = [a for a in ("eq1", "eq2", "eq3") if chosen.loc[a, "decision"] == "chosen"][0]
+        self.assertAlmostEqual(w.loc["benchmark_60_40", eq], 0.6)                         # benchmark left untouched
+        self.assertAlmostEqual(w.loc["benchmark_60_40", ["b1", "b2"]].sum(), 0.4)
         shares = pd.read_csv(self.processed / "allocation_risk_shares.csv", index_col="method")
         self.assertTrue(np.allclose(shares.sum(axis=1), 1.0))
+        rb = shares.loc["risk_budget"]                                  # before the cash mix, budgets 50/35/15 hold in the risky sleeve
+        self.assertGreater(rb[eq], rb["gld"])
 
     def test_no_returns_are_reported(self):
         _, out = self.run_stage()
@@ -221,6 +242,8 @@ class TestStage05(unittest.TestCase):
     def test_other_profile_and_estimator_and_errors(self):
         self.assertEqual(self.run_stage(["--profile", "prudent", "--cov", "ewma"])[0], 0)
         self.assertEqual(self.run_stage(["--profile", "nope"])[0], 1)
+        (self.processed / "selection.csv").unlink()
+        self.assertEqual(self.run_stage()[0], 1)
         (self.processed / "returns_pln.csv").unlink()
         self.assertEqual(self.run_stage()[0], 1)
 

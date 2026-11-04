@@ -1,30 +1,23 @@
-# config/portfolio.yaml  [PROPOSED]
+# config/portfolio.yaml  [DECIDED by the owner 2026-11-04: IPS decisions 26 and 28]
 #
-# Which ETFs stage 05 may use. Rule (IPS decision 9): at most 6 risky ETFs + 1 cash-like ETF, ONE per risk driver,
-# chosen BEFORE looking at any allocation result and without looking at performance:
-#   equity world+EM ........ allworld_vanguard   (one global ETF; World + EM separately would be the same bet, corr 0.99)
-#   euro government rates .. eur_govt_bond
-#   euro credit ............. eur_corp_bonds
-#   global bonds (hedged) ... global_bond_hedged
-#   inflation ............... inflation_linked
-#   gold .................... gold
-# The cash-like ETF is used ONLY to scale the volatility to the target. In PLN it still has ~6% volatility
-# (all of it EUR/PLN), see IPS section 9.
-#
-# Factor and sector ETFs are research-only: they add little diversification (corr 0.97 with the market).
-# Changing this list after seeing results is data snooping: if you do, write the reason in the IPS.
+# The owner fixes the CLASSES and how much RISK each class may carry. The code chooses the ETFs by rule
+# (src/prm/allocation/choose.py), with no look at performance. Changing numbers here after seeing results
+# is data snooping: if you do, write the reason in the IPS.
 
 allocation:
-  universe:
-    - {id: allworld_vanguard, role: equity}
-    - {id: eur_govt_bond,     role: bond}
-    - {id: eur_corp_bonds,    role: bond}
-    - {id: global_bond_hedged, role: bond}
-    - {id: inflation_linked,  role: bond}
-    - {id: gold,              role: real}
-    - {id: cash_like,         role: cash}
+  # Share of the portfolio's RISK (not of the capital) carried by each class. Must add up to 1.
+  # Inside a class the budget is split equally among its ETFs. Equity is the only class that earns the
+  # long-run premium, so it gets half of the risk; gold diversifies; bonds (and their EUR/PLN risk) the rest.
+  class_budgets: {equity: 0.50, bond: 0.35, real: 0.15}
 
-  benchmark_60_40: {equity: allworld_vanguard, bond: eur_govt_bond}
+  # At most this many ETFs per class (total <= 6, IPS decision 9).
+  max_etfs: {equity: 2, bond: 3, real: 1}
 
-  covariance: ledoit_wolf   # sample | ewma | ledoit_wolf   (declared in advance, not tuned)
+  selection:
+    rho_max: 0.90             # correlation >= this = same exposure, only the most central ETF is kept
+    min_overlap_days: 500     # a class needs this many common days to measure similarity
+    min_history_years: 5      # same as the stage-02 criterion
+    currency: EUR             # IPS decision 23
+
+  covariance: ledoit_wolf     # sample | ewma | ledoit_wolf   (declared in advance, not tuned)
   ewma_lambda: 0.94

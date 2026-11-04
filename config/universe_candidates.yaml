@@ -33,6 +33,8 @@ criteria:                       # [CALIBRATE] proposals, approve or change befor
 # --- Implementable core (max 6 risk ETFs + 1 cash-like) ---------------------------
 implementable:
   - id: dev_equity
+    asset_class: equity
+    core: true
     accumulating: true
     category: world_developed
     risk_driver: developed equities
@@ -48,6 +50,8 @@ implementable:
     underlying_currency_note: "mostly USD (US weight around 70% per one aggregator: verify)"
 
   - id: em_equity
+    asset_class: equity
+    core: true
     accumulating: true
     category: emerging_markets
     risk_driver: emerging equities
@@ -63,6 +67,8 @@ implementable:
     underlying_currency_note: "TWD, KRW, CNY, INR... (top currencies per one aggregator: verify)"
 
   - id: global_bond_hedged
+    asset_class: bond
+    core: true
     accumulating: true
     category: global_bonds_hedged
     risk_driver: global bonds (EUR hedged)
@@ -78,6 +84,8 @@ implementable:
     yahoo_symbol: EUNA.DE        # CONFIRMED by --find (Oct 2026): XETRA listing, the fund name is exactly this ETF (AGGH on other exchanges). History from 2017-11-21. Shorter on Yahoo: AGGH.AS (from 2021-05-17), AGGH.MI (from 2019-06-12)
 
   - id: inflation_linked
+    asset_class: bond
+    core: true
     accumulating: true
     category: global_inflation_linked
     risk_driver: inflation-linked bonds (EUR hedged)
@@ -93,6 +101,8 @@ implementable:
     history_proxy: "Distributing class IE00BD8PH174 (inception 2017-09-22, same strategy, TER 0.20%): declare as proxy"
 
   - id: gold
+    asset_class: real
+    core: true
     accumulating: true
     category: gold
     risk_driver: gold
@@ -109,6 +119,8 @@ implementable:
     alternative: "Xetra-Gold DE000A0S9GB0, TER ~0.36%, inception 2007-11, EUR (one source shows 0.00%: verify)"
 
   - id: cash_like
+    asset_class: cash
+    core: true
     accumulating: true
     category: eur_overnight
     risk_driver: cash-like (used only for vol scaling)
@@ -126,6 +138,8 @@ implementable:
 # --- Research-only additions (more assets for correlations, clustering, FX studies) ---
 research_only:
   - id: global_bond_unhedged
+    asset_class: bond
+    core: false   # foreign-currency bonds not hedged: adds USD risk (IPS section 3.1)
     accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: global_bonds_unhedged
     risk_driver: global bonds (unhedged)
@@ -138,6 +152,8 @@ research_only:
     note: "distributing: use total-return (dividend-adjusted) prices. No accumulating unhedged version found yet: verify."
 
   - id: europe_equity
+    asset_class: equity
+    core: true
     accumulating: true
     category: europe_developed
     risk_driver: developed Europe equities
@@ -148,6 +164,8 @@ research_only:
     purpose: "regional split inside developed equities, EUR-native exposure"
 
   - id: eur_govt_bond
+    asset_class: bond
+    core: true
     accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_govt_broad
     risk_driver: euro government bonds
@@ -160,6 +178,8 @@ research_only:
     search: "iShares Core € Govt Bond UCITS ETF"
     yahoo_symbol: EUNH.DE        # CONFIRMED by --find: XETRA listing, name matches, DISTRIBUTING (Dist). Accumulating class: IEGS.MI (Milan). (EUNA.DE was given here by mistake: it is the global aggregate hedged fund)
   - id: acwi_ishares
+    asset_class: equity
+    core: true
     accumulating: true
     ter_pct: 0.2   # one aggregator page; verify on the KID
     category: all_country
@@ -169,6 +189,8 @@ research_only:
     yahoo_symbol: IUSQ.DE        # CONFIRMED by probe: name and currency (EUR) match. Quality check: price frozen for the first 116 days (2011-10-21 to 2012-04-02)
     use_from: "2012-04-03"   # PROVISIONAL: the first 116 days show one identical price, so they are ignored. Check the first rows of data/raw/yahoo/IUSQ.DE.csv
   - id: allworld_vanguard
+    asset_class: equity
+    core: true
     accumulating: true
     ter_pct: 0.14   # one aggregator page; verify on the KID
     category: all_country
@@ -177,6 +199,8 @@ research_only:
     isin: IE00BK5BQT80   # verified: --find showed the expected fund name
     yahoo_symbol: VWCE.DE        # CONFIRMED by probe: name and currency (EUR) match, status ok. VWCE.MI has the same fund but a stale run in Sept 2022
   - id: world_xtrackers
+    asset_class: equity
+    core: true
     accumulating: true
     ter_pct: 0.12   # one aggregator page; verify on the KID
     category: world_developed
@@ -185,6 +209,8 @@ research_only:
     isin: IE00BJ0KDQ92   # verified: --find showed the expected fund name
     yahoo_symbol: XDWD.DE        # CONFIRMED by --find: XETRA listing
   - id: world_amundi
+    asset_class: equity
+    core: true
     accumulating: true
     ter_pct: 0.38   # one aggregator page; verify on the KID
     category: world_developed
@@ -193,6 +219,8 @@ research_only:
     isin: LU1681043599   # verified: --find showed the expected fund name
     yahoo_symbol: CW8.PA        # CONFIRMED by --find: Paris listing, EUR; this is a SWAP-based fund (synthetic replication)
   - id: em_xtrackers
+    asset_class: equity
+    core: true
     accumulating: true
     category: emerging_markets
     name: Xtrackers MSCI Emerging Markets UCITS ETF 1C
@@ -200,6 +228,8 @@ research_only:
     isin: IE00BTJRMP35   # verified: --find showed the expected fund name
     yahoo_symbol: XMME.DE        # CONFIRMED by --find: XETRA listing
   - id: world_momentum
+    asset_class: equity
+    core: false   # factor strategy: a subset of the market, correlation 0.97-0.98 with it
     accumulating: true
     category: factor_momentum
     name: iShares Edge MSCI World Momentum Factor UCITS ETF
@@ -208,6 +238,8 @@ research_only:
     yahoo_symbol: IS3R.DE        # CONFIRMED by --find: XETRA listing
     use_from: "2015-06-01"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2015-05-08
   - id: world_quality
+    asset_class: equity
+    core: false   # factor strategy: a subset of the market, correlation 0.97-0.98 with it
     accumulating: true
     category: factor_quality
     name: iShares Edge MSCI World Quality Factor UCITS ETF
@@ -216,6 +248,8 @@ research_only:
     yahoo_symbol: IS3Q.DE        # CONFIRMED by --find: XETRA listing
     use_from: "2015-01-02"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2014-11-24
   - id: world_low_vol
+    asset_class: equity
+    core: false   # factor strategy: a subset of the market
     accumulating: true
     category: factor_low_volatility
     name: iShares Edge MSCI World Minimum Volatility UCITS ETF
@@ -224,6 +258,8 @@ research_only:
     yahoo_symbol: IQQ0.DE        # CONFIRMED by --find: XETRA listing of the USD (Acc) class. SXR0.DE is the EUR-hedged class
     use_from: "2013-05-01"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2013-04-18
   - id: world_value
+    asset_class: equity
+    core: false   # factor strategy: a subset of the market
     accumulating: true
     category: factor_value
     name: iShares Edge MSCI World Value Factor UCITS ETF
@@ -232,6 +268,8 @@ research_only:
     yahoo_symbol: IS3S.DE        # CONFIRMED by --find: XETRA listing
     use_from: "2015-01-02"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2014-11-24
   - id: world_small_cap
+    asset_class: equity
+    core: false   # size segment, not the whole market
     accumulating: true
     category: small_cap
     name: iShares MSCI World Small Cap UCITS ETF
@@ -239,6 +277,8 @@ research_only:
     isin: IE00BF4RFH31   # verified: --find showed the expected fund name
     yahoo_symbol: IUSN.DE        # CONFIRMED by --find: XETRA listing
   - id: china_tech
+    asset_class: equity
+    core: false   # single-country thematic fund, 37% volatility
     accumulating: true
     category: china_technology
     name: China technology UCITS ETF (candidate not chosen yet)
@@ -247,6 +287,8 @@ research_only:
     search: "China technology UCITS ETF"
     yahoo_symbol: UIC2.DE        # CONFIRMED by --find: XETRA listing of the USD acc class (unhedged). The EUR-hedged class is UIC1.DE
   - id: world_health_care
+    asset_class: equity
+    core: false   # single sector
     accumulating: true
     category: sector_health_care
     name: Xtrackers MSCI World Health Care UCITS ETF 1C
@@ -254,6 +296,8 @@ research_only:
     isin: IE00BM67HK77   # verified: --find showed the expected fund name
     yahoo_symbol: XDWH.DE        # CONFIRMED by --find: XETRA listing
   - id: world_staples
+    asset_class: equity
+    core: false   # single sector
     accumulating: true
     category: sector_consumer_staples
     name: Xtrackers MSCI World Consumer Staples UCITS ETF 1C
@@ -261,6 +305,8 @@ research_only:
     isin: IE00BM67HN09   # verified: --find showed the expected fund name
     yahoo_symbol: XDWS.DE        # CONFIRMED by --find: XETRA listing
   - id: europe_rafi
+    asset_class: equity
+    core: false   # no symbol, no data
     accumulating: true
     category: europe_fundamental
     name: Europe RAFI fundamental-weighted UCITS ETF (candidate not chosen yet)
@@ -269,6 +315,8 @@ research_only:
     search: "RAFI Europe UCITS ETF"   # found nothing twice: it probably does not exist as a UCITS ETF on Yahoo. Check justETF, otherwise remove
     yahoo_symbol: verify
   - id: eur_corp_bonds
+    asset_class: bond
+    core: true
     accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_corporate_bonds
     name: iShares Core EUR Corp Bond UCITS ETF
@@ -276,6 +324,8 @@ research_only:
     isin: IE00B3F81R35   # verified: --find showed the expected fund name
     yahoo_symbol: IEAC.AS        # CONFIRMED by probe: name and currency (EUR) match, status ok; DISTRIBUTING (Dist). IEAC.MI has a stale run in Sept 2022
   - id: eur_gov_7_10
+    asset_class: bond
+    core: false   # maturity segment of euro government bonds (corr 0.98 with the broad fund)
     accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_govt_7_10y
     name: iShares EUR Govt Bond 7-10yr UCITS ETF
@@ -284,6 +334,8 @@ research_only:
     search: "iShares € Govt Bond 7-10yr UCITS ETF"   # Yahoo writes the euro sign: the old text found nothing
     yahoo_symbol: IBCM.DE        # CONFIRMED by --find: XETRA listing; DISTRIBUTING (Dist). Also IBGM.AS (Amsterdam), IBGM.MI (Milan)
   - id: eur_high_yield
+    asset_class: bond
+    core: false   # credit-quality segment, behaves partly like equity
     accumulating: false   # Dist: pays out income (Belka tax each year); research use only
     category: eur_high_yield
     name: iShares EUR High Yield Corp Bond UCITS ETF
@@ -291,6 +343,8 @@ research_only:
     isin: IE00B66F4759   # verified: --find showed the expected fund name
     yahoo_symbol: IHYG.MI        # CONFIRMED by probe: name and currency (EUR) match; DISTRIBUTING (Dist). Only listing found. Flag: 15 identical closes in 2012 (2012-06-22 to 2012-07-12), not decided
   - id: eur_inflation_linked
+    asset_class: bond
+    core: true
     accumulating: true
     category: eur_inflation_linked
     name: iShares EUR Inflation Linked Govt Bond UCITS ETF
@@ -298,6 +352,8 @@ research_only:
     isin: IE00B0M62X26   # verified: --find showed the expected fund name
     yahoo_symbol: IBCI.AS        # CONFIRMED by --find: Amsterdam listing, EUR, accumulating
   - id: us_short_treasury
+    asset_class: cash
+    core: false   # USD asset: adds dollar exposure (owner chose EUR ETFs only)
     accumulating: true
     category: us_short_treasury
     name: iShares USD Treasury Bond 0-1yr UCITS ETF
@@ -306,26 +362,3 @@ research_only:
     note: "USD asset: adds dollar exposure even though it behaves like cash"
     yahoo_symbol: IB01.L        # CONFIRMED by probe: name matches, currency USD (a USD asset on a London line). Quality check: a +1883.8% move on 2019-02-22, so the first rows are wrong
     use_from: "2019-02-22"   # PROVISIONAL: rows before the jump are ignored. Check the first rows of data/raw/yahoo/IB01.L.csv
-
-  # ---- PROXIES: used only to extend the early history of a young ETF (never selectable, see IPS decision 27) ----
-  # Both must be confirmed with:  python pipeline/01_sourcing.py --probe   (check fund name AND currency)
-  - id: proxy_gold
-    category: proxy_gold
-    accumulating: true
-    proxy_for: gold
-    name: iShares Physical Gold ETC, London listing in USD (same fund as PPFB, older line)
-    risk_driver: gold
-    isin: IE00B4ND3602
-    yahoo_symbol: verify
-    yahoo_symbol_try: [IGLN.L, SGLN.L]   # IGLN = USD line, SGLN = GBP line (guess from memory: the probe prints name and currency)
-    purpose: "same fund as gold (PPFB.DE, EUR line from 2021-07); the London lines run from 2011, so the COVID crash is covered"
-  - id: proxy_inflation_linked
-    category: proxy_inflation_linked
-    accumulating: false
-    proxy_for: inflation_linked
-    name: iShares Global Inflation Linked Govt Bond UCITS ETF EUR Hedged (Dist)
-    risk_driver: inflation-linked bonds (EUR hedged)
-    isin: IE00BD8PH174
-    yahoo_symbol: verify
-    search: "iShares Global Inflation Linked Govt Bond UCITS ETF EUR Hedged Dist"
-    purpose: "same strategy as IS3V.DE (Acc, from 2020-04-27); this Dist class starts 2017-09-22, so the COVID crash is covered. Use adjusted (total return) prices"
