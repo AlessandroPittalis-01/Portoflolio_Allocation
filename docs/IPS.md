@@ -389,6 +389,25 @@ window of the 7 ETFs (limited by gold, about 5 years, one regime), so it describ
 Cases not covered yet: minimum CVaR (needs scenarios, tier 2), Black-Litterman views, covariance re-estimated through time (that is the backtest, stage 06).
 If a method cannot reach the target without leverage the stage says so (status `below_target`), because comparing methods at different risk levels would break principle 1 of section 5.
 
+### 2026-11-04 — Stage 05 first run on real data (window 2021-07-19 to 2026-11-02, 1349 days, Ledoit-Wolf) `[OBSERVED]`
+
+Weights are long-only and add up to 100% in every row (smallest weight 1.6%, no leverage).
+**Owner profile (target 9% in PLN): NO method reaches the target.** All five end with the risky mix at 100% and volatility 6.9% (min variance) to 7.8% (equal weight)
+(status `below_target`). Reason: with ONE equity ETF out of six, risk-based methods hold only 10-17% in equity; the mix is mostly bonds and gold.
+The 60/40 benchmark has 10.0% volatility, 80% of its risk is equity. This is a property of the universe plus equal-risk logic, not a bug:
+risk parity depends on how many ETFs sit in each risk driver.
+**In-sample drawdown:** risk-based mixes -19.0% to -21.3%, the 60/40 -17.1% despite its higher volatility (10.0% against 7.4%). The window contains 2022, when
+EUR bonds lost 13-17% in PLN while global equities lost only 8.7%. One regime: not a conclusion about the methods, but it breaks the idea that "more bonds = smaller drawdown".
+Every mix, including the 60/40, is at or beyond the owner's review threshold (-18%): the drawdown rules need recalibration in stage 06.
+**FX share of the variance:** 48-62% for the owner mixes, 70-71% for the prudent ones, 26% for the 60/40. The FX limit of 30% (section 3.1) is not met by any risk-based
+mix: with EUR bonds the currency is the main source of risk. The limit stays a reported number, it is not enforceable with this universe.
+**Prudent profile (6.5%):** all methods reach the target with 16-37% in the cash-like ETF, which carries 11-27% of the portfolio risk (cash is not risk-free in PLN).
+Drawdowns -15.5% to -17.8% against a prudent review level of -12%: that level is not reachable either.
+**Method notes:** risk parity gives exactly 16.7% of risk to each ETF (check passed). Minimum variance concentrates: 40% corporate bonds + 40% hedged global bonds,
+effective number of positions 3.0. HRP holds most in hedged global bonds (31%) and inflation-linked (22%).
+Open decisions: how to handle a target that equal-risk methods cannot reach (risk budgets by class, a lower target, or more equity ETFs); proxy history to extend
+the backtest before 2021 (gold, inflation-linked, All-World start in 2019-2021); what to do with the FX limit and the drawdown thresholds.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -406,3 +425,4 @@ No backtest results yet.
 - v0.9 — EUR-only decision; stage 03 live results (FX share); stage 04 risk analysis built.
 - v0.10 — stage 04 first run logged; decision 24 (risk in PLN, owner target 9%); `use_from` for four factor ETFs.
 - v0.11 — stage 04 re-run logged; stage 05 allocation built (5 methods, same target and limits, no returns shown); decision 25.
+- v0.12 — stage 05 first real run logged: target not reached by risk-based methods, FX limit and drawdown thresholds in conflict with the universe.
