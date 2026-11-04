@@ -37,6 +37,7 @@ class Asset:
     use_from: str | None             # ISO date: ignore earlier rows (a documented decision, see IPS log)
     accumulating: bool | None = None  # True = reinvests income (Acc), False = pays it out (Dist), None = unknown
     ter_pct: float | None = None      # annual cost in percent (0.20 = 0.20%); None = not verified yet
+    proxy_for: str | None = None      # id of the asset whose missing early history this series replaces (never a selectable ETF)
 
 
 def _known(value) -> str | None:
@@ -110,6 +111,7 @@ def load_universe(path: Path | str = DEFAULT_UNIVERSE_PATH) -> tuple[dict, list[
                     use_from=_iso_date_or_none(item.get("use_from")),
                     accumulating=_bool_or_none(item.get("accumulating")),
                     ter_pct=_float_or_none(item.get("ter_pct")),
+                    proxy_for=_known(item.get("proxy_for")),
                 )
             )
 
@@ -122,5 +124,12 @@ def load_universe(path: Path | str = DEFAULT_UNIVERSE_PATH) -> tuple[dict, list[
                     f"symbol {asset.yahoo_symbol} is assigned to both '{owner[asset.yahoo_symbol]}' and '{asset.id}'"
                 )
             owner[asset.yahoo_symbol] = asset.id
+
+    ids = {a.id for a in assets}
+    for asset in assets:
+        if asset.proxy_for and asset.proxy_for not in ids:
+            raise ValueError(f"proxy '{asset.id}' points to the unknown asset '{asset.proxy_for}'")
+        if asset.proxy_for == asset.id:
+            raise ValueError(f"proxy '{asset.id}' cannot be a proxy for itself")
 
     return raw.get("criteria") or {}, assets

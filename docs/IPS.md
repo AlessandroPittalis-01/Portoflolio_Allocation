@@ -42,6 +42,9 @@
 | 23 | Safe part of the portfolio | ETFs in EUR only; no PLN assets (Polish bonds, PLN money funds) for now. EUR/PLN risk is accepted and measured, not removed | `[DECIDED]` |
 | 24 | How risk is measured | in PLN, with EUR ETFs only; because EUR/PLN alone has 5-6% volatility, the owner target is raised from 7% to 9% (range 8-10%); the other profiles are shifted too (prudent 6.5%, balanced 9%, dynamic 12%) | `[DECIDED]` (owner chose option B, 2026-11-01) |
 | 25 | Allocation universe (stage 05) | 6 risky ETFs, one per risk driver, + cash-like: allworld_vanguard, eur_govt_bond, eur_corp_bonds, global_bond_hedged, inflation_linked, gold + cash_like. Fixed in `config/portfolio.yaml` BEFORE seeing any allocation result, without performance | `[PROPOSED]` |
+| 26 | Who chooses the ETFs | the ALLOCATOR chooses, not us: stage 02 only removes ineligible ETFs and duplicates of the same index; at each date, using only data available up to then, the allocator clusters the candidates by correlation, keeps one representative (medoid) per cluster, and applies risk budgets by class with at most 6 risky ETFs and a stability rule (no switch for a small advantage). Never uses returns | `[PROPOSED]` (owner asked for it on 2026-11-04; method to confirm) |
+| 27 | Proxies for short histories | young ETFs get their early history from a declared proxy (same fund on another listing, or same strategy in another share class), validated on the overlap, always labelled in the results; goal: cover the COVID crash (Feb-Mar 2020). Proxies are never selectable | `[PROPOSED]` |
+| 28 | Risk budgets by class | policy numbers written in the IPS BEFORE looking at results (to define); they set how much growth risk the portfolio takes | `[PROPOSED]` |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
 actually tolerate is not implementable. The vol target must be consistent with the
@@ -408,6 +411,16 @@ effective number of positions 3.0. HRP holds most in hedged global bonds (31%) a
 Open decisions: how to handle a target that equal-risk methods cannot reach (risk budgets by class, a lower target, or more equity ETFs); proxy history to extend
 the backtest before 2021 (gold, inflation-linked, All-World start in 2019-2021); what to do with the FX limit and the drawdown thresholds.
 
+### 2026-11-04 — Direction chosen after the first stage-05 run `[PROPOSED]`
+
+Owner decisions: keep the real series for the latest snapshot, add proxies only for the backtest, cover at least the COVID crash, adapt the universe because return matters,
+and let the allocator choose the ETFs mathematically. Critical notes recorded here: (1) the common window of the 7 current ETFs starts 2021-07-19, so it does NOT contain the COVID crash
+(Feb-Mar 2020) and holds a single regime (the 2022 rates shock); (2) choosing among ~20 candidates on 5 years of data invites selection bias, so the choice must be done inside the walk-forward
+with past data only; (3) nearly identical ETFs (correlation 0.97-0.99) swap on noise, hence clustering first; (4) return is pursued through the equity risk budget, not by picking ETFs that did well;
+(5) any change of the universe made AFTER seeing the first result is a post-hoc choice and is declared as such.
+Built so far: risk budgeting (`risk_budget`, class budgets split inside the class) and the `proxy_for` field in the universe file; proxy candidates for gold (London USD line of the same fund) and
+inflation-linked (Dist class of the same fund) are in the file, symbols still to confirm with `--probe` / `--find`. Not built yet: proxy splicing with overlap validation, the selection engine, the walk-forward backtest.
+
 No backtest results yet.
 
 ## 10. Changelog
@@ -426,3 +439,4 @@ No backtest results yet.
 - v0.10 — stage 04 first run logged; decision 24 (risk in PLN, owner target 9%); `use_from` for four factor ETFs.
 - v0.11 — stage 04 re-run logged; stage 05 allocation built (5 methods, same target and limits, no returns shown); decision 25.
 - v0.12 — stage 05 first real run logged: target not reached by risk-based methods, FX limit and drawdown thresholds in conflict with the universe.
+- v0.13 — decisions 26-28 proposed (allocator chooses ETFs, proxies, class risk budgets); risk budgeting and `proxy_for` built.

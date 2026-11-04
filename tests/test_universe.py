@@ -98,3 +98,20 @@ class TestUniverse(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProxies(unittest.TestCase):
+    def test_proxies_in_the_real_file_point_to_young_etfs(self):
+        _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
+        by_id = {a.id: a for a in assets}
+        self.assertEqual(by_id["proxy_gold"].proxy_for, "gold")
+        self.assertEqual(by_id["proxy_inflation_linked"].proxy_for, "inflation_linked")
+        self.assertIsNone(by_id["gold"].proxy_for)
+
+    def test_proxy_to_unknown_or_to_itself_is_rejected(self):
+        base = "implementable:\n  - {id: a, name: A, risk_driver: r, yahoo_symbol: AAA}\nresearch_only:\n"
+        for line, word in (("  - {id: p, name: P, risk_driver: r, proxy_for: nope}\n", "unknown"),
+                           ("  - {id: p, name: P, risk_driver: r, proxy_for: p}\n", "itself")):
+            with self.assertRaises(ValueError) as ctx:
+                load_universe(write_yaml(base + line))
+            self.assertIn(word, str(ctx.exception))

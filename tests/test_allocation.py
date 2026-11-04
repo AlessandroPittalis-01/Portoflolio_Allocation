@@ -227,3 +227,56 @@ class TestStage05(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestRiskBudget(unittest.TestCase):
+    def test_equal_budgets_equal_risk_parity(self):
+        from prm.allocation.weights import risk_budget
+        cov = make_cov(5, seed=11)
+        equal = pd.Series(1.0, index=cov.index)
+        self.assertTrue(np.allclose(risk_budget(cov, equal), risk_parity(cov), atol=1e-6))
+
+    def test_risk_shares_match_the_budgets(self):
+        from prm.allocation.weights import risk_budget
+        cov = make_cov(4, seed=12)
+        budgets = pd.Series([0.5, 0.2, 0.2, 0.1], index=cov.index)
+        shares = risk_contributions(risk_budget(cov, budgets), cov)["risk_share"]
+        self.assertTrue(np.allclose(shares, budgets, atol=1e-4))
+
+    def test_budgets_are_rescaled_and_weights_stay_long_only(self):
+        from prm.allocation.weights import risk_budget
+        cov = make_cov(3, seed=13)
+        w = risk_budget(cov, pd.Series([5.0, 3.0, 2.0], index=cov.index))     # 5/3/2 means 50/30/20 %
+        shares = risk_contributions(w, cov)["risk_share"]
+        self.assertTrue(np.allclose(shares, [0.5, 0.3, 0.2], atol=1e-4))
+        self.assertAlmostEqual(w.sum(), 1.0)
+        self.assertTrue((w > 0).all())
+
+    def test_bad_budgets_are_rejected(self):
+        from prm.allocation.weights import risk_budget
+        cov = make_cov(3, seed=14)
+        for bad in (pd.Series([1.0, 0.0, 1.0], index=cov.index), pd.Series([1.0, -1.0, 1.0], index=cov.index),
+                    pd.Series([1.0, 1.0], index=cov.index[:2])):
+            with self.assertRaises(ValueError):
+                risk_budget(cov, bad)
+
+    def test_class_budgets_are_split_inside_the_class(self):
+        from prm.allocation.budgets import asset_budgets
+        roles = {"eq1": "equity", "eq2": "equity", "bd": "bond", "gld": "real"}
+        b = asset_budgets(roles, {"equity": 0.5, "bond": 0.3, "real": 0.2})
+        self.assertAlmostEqual(b["eq1"], 0.25)
+        self.assertAlmostEqual(b["bd"], 0.3)
+        self.assertAlmostEqual(b.sum(), 1.0)
+
+    def test_absent_class_is_dropped_and_rest_rescaled(self):
+        from prm.allocation.budgets import asset_budgets
+        b = asset_budgets({"eq": "equity", "bd": "bond"}, {"equity": 0.5, "bond": 0.3, "real": 0.2})
+        self.assertAlmostEqual(b["eq"], 0.5 / 0.8)
+        self.assertAlmostEqual(b.sum(), 1.0)
+
+    def test_class_without_budget_or_nonpositive_budget_is_rejected(self):
+        from prm.allocation.budgets import asset_budgets
+        with self.assertRaises(ValueError):
+            asset_budgets({"x": "crypto"}, {"equity": 1.0})
+        with self.assertRaises(ValueError):
+            asset_budgets({"x": "equity"}, {"equity": 0.0})

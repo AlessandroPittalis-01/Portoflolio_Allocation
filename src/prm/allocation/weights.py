@@ -68,6 +68,37 @@ def risk_parity(cov: pd.DataFrame) -> pd.Series:
     return pd.Series(w, index=cov.index)
 
 
+def risk_budget(cov: pd.DataFrame, budgets: pd.Series) -> pd.Series:
+    """Risk budgeting: every ETF carries the share of risk written in ``budgets`` (long only).
+
+    ``budgets`` are positive numbers (rescaled to add up to 1). With equal budgets this is exactly risk parity.
+    Same convex problem as ``risk_parity`` with a weighted log term:  min 0.5 w'Sw - sum b_i ln(w_i).
+    The budgets are a POLICY decision written in the IPS before looking at results (they are not tuned).
+    """
+    _check(cov)
+    b = budgets.reindex(cov.index)
+    if b.isna().any() or (b <= 0).any():
+        raise ValueError("every ETF needs a positive risk budget")
+    b = (b / b.sum()).to_numpy()
+    s = cov.to_numpy()
+    s = s / np.mean(np.diag(s))
+    n = len(s)
+
+    def objective(w):
+        return 0.5 * w @ s @ w - (b * np.log(w)).sum()
+
+    def gradient(w):
+        return s @ w - b / w
+
+    x0 = b / np.sqrt(np.diag(s))
+    x0 = x0 / x0.sum()
+    res = minimize(objective, x0, jac=gradient, method="L-BFGS-B", bounds=[(1e-10, None)] * n,
+                   options={"maxiter": 1000, "ftol": 1e-15, "gtol": 1e-12})
+    if not np.isfinite(res.fun):
+        raise RuntimeError(f"risk budgeting did not converge: {res.message}")
+    return pd.Series(res.x / res.x.sum(), index=cov.index)
+
+
 def min_variance(cov: pd.DataFrame, max_weight: float = 1.0) -> pd.Series:
     """Lowest-variance long-only mix with weights between 0 and ``max_weight``."""
     _check(cov)

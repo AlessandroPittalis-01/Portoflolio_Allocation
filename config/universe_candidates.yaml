@@ -306,3 +306,26 @@ research_only:
     note: "USD asset: adds dollar exposure even though it behaves like cash"
     yahoo_symbol: IB01.L        # CONFIRMED by probe: name matches, currency USD (a USD asset on a London line). Quality check: a +1883.8% move on 2019-02-22, so the first rows are wrong
     use_from: "2019-02-22"   # PROVISIONAL: rows before the jump are ignored. Check the first rows of data/raw/yahoo/IB01.L.csv
+
+  # ---- PROXIES: used only to extend the early history of a young ETF (never selectable, see IPS decision 27) ----
+  # Both must be confirmed with:  python pipeline/01_sourcing.py --probe   (check fund name AND currency)
+  - id: proxy_gold
+    category: proxy_gold
+    accumulating: true
+    proxy_for: gold
+    name: iShares Physical Gold ETC, London listing in USD (same fund as PPFB, older line)
+    risk_driver: gold
+    isin: IE00B4ND3602
+    yahoo_symbol: verify
+    yahoo_symbol_try: [IGLN.L, SGLN.L]   # IGLN = USD line, SGLN = GBP line (guess from memory: the probe prints name and currency)
+    purpose: "same fund as gold (PPFB.DE, EUR line from 2021-07); the London lines run from 2011, so the COVID crash is covered"
+  - id: proxy_inflation_linked
+    category: proxy_inflation_linked
+    accumulating: false
+    proxy_for: inflation_linked
+    name: iShares Global Inflation Linked Govt Bond UCITS ETF EUR Hedged (Dist)
+    risk_driver: inflation-linked bonds (EUR hedged)
+    isin: IE00BD8PH174
+    yahoo_symbol: verify
+    search: "iShares Global Inflation Linked Govt Bond UCITS ETF EUR Hedged Dist"
+    purpose: "same strategy as IS3V.DE (Acc, from 2020-04-27); this Dist class starts 2017-09-22, so the COVID crash is covered. Use adjusted (total return) prices"

@@ -150,3 +150,31 @@ class TestStage02(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class TestProxiesAreNeverSelected(unittest.TestCase):
+    def test_stage_02_ignores_proxy_assets(self):
+        tmp = Path(tempfile.mkdtemp())
+        processed = tmp / "processed"
+        processed.mkdir()
+        (tmp / "settings.yaml").write_text(
+            f'data:\n  start_date: "2018-01-01"\n  raw_dir: {tmp / "raw"}\n  processed_dir: {processed}\n'
+            "  max_cache_age_days: 1\nquality:\n  max_daily_move: 0.12\n  max_gap_days: 7\n  max_stale_days: 5\n")
+        (tmp / "universe.yaml").write_text(
+            "criteria:\n  min_history_years: 5\n  listing_currency: EUR\nimplementable:\n"
+            "  - {id: gold, category: gold, name: G, risk_driver: r, yahoo_symbol: G1, accumulating: true, ter_pct: 0.5}\n"
+            "research_only:\n"
+            "  - {id: proxy_gold, category: gold, name: PG, risk_driver: r, yahoo_symbol: G2, accumulating: true, ter_pct: 0.1, proxy_for: gold}\n")
+        idx = pd.bdate_range("2018-01-01", "2026-10-28", name="date")
+        rng = np.random.default_rng(0)
+        pd.DataFrame({k: 100 * np.exp(np.cumsum(rng.normal(0, 0.01, len(idx)))) for k in ("gold", "proxy_gold")}, index=idx
+                     ).to_csv(processed / "prices_adj_close.csv")
+        report([("gold", "ok", "EUR", 8.8, ""), ("proxy_gold", "ok", "EUR", 8.8, "")]).to_csv(processed / "quality_report.csv", index=False)
+        spec = importlib.util.spec_from_file_location("stage02p", Path(__file__).resolve().parents[1] / "pipeline" / "02_selection.py")
+        module = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(module)
+        with contextlib.redirect_stdout(io.StringIO()):
+            code = module.main(["--settings", str(tmp / "settings.yaml"), "--universe", str(tmp / "universe.yaml")])
+        self.assertEqual(code, 0)
+        chosen = pd.read_csv(processed / "selected_assets.csv")
+        self.assertEqual(list(chosen["asset_id"]), ["gold"])      # the cheaper proxy did NOT win
