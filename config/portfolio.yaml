@@ -11,13 +11,17 @@ allocation:
   class_budgets: {equity: 0.50, bond: 0.35, real: 0.15}
 
   # At most this many ETFs per class (total <= 6, IPS decision 9).
-  max_etfs: {equity: 2, bond: 3, real: 1}
+  max_etfs: {equity: 2, bond: 2, real: 1}
 
   # Equity: the first ETF (global) keeps 80% of the equity risk budget, the second (emerging markets) only 20%,
   # i.e. 10% of the total risk. Why: the global ETF already holds about 10% emerging markets, so an equal split
   # (25% of total risk each) would be a large, unjustified overweight. 20% is a policy number written BEFORE
   # seeing results, not tuned (IPS decision 30). Classes not listed here split their budget equally.
-  secondary_share: {equity: 0.20}
+  # Bonds (IPS decision 31): the core bond ETF (the most representative, in practice broad euro government
+  # bonds) is the stable base of the class and keeps 70%; the second bond ETF, chosen for being different
+  # (for example inflation-linked), gets 30%. Without this rule two of three bond slots were inflation-linked
+  # and carried twice the risk of the nominal bonds. The reason is structural, not performance.
+  secondary_share: {equity: 0.20, bond: 0.30}
 
   # Fixed benchmark: it does not depend on the ETF choice (IPS decision 29).
   benchmark_60_40: {equity: allworld_vanguard, bond: eur_govt_bond}

@@ -151,9 +151,10 @@ class TestSpec(unittest.TestCase):
     def test_real_file_loads_and_matches_the_ips(self):
         spec = load_portfolio(DEFAULT_PORTFOLIO_PATH)
         self.assertEqual(spec.class_budgets, {"equity": 0.5, "bond": 0.35, "real": 0.15})      # IPS decision 28
-        self.assertLessEqual(sum(spec.rules.max_etfs.values()), 6)                           # IPS decision 9
+        self.assertLessEqual(sum(spec.rules.max_etfs.values()), 6)
+        self.assertEqual(spec.rules.max_etfs, {"equity": 2, "bond": 2, "real": 1})                           # IPS decision 9
         self.assertEqual(spec.rules.currency, "EUR")                                         # IPS decision 23
-        self.assertEqual(spec.secondary_share, {"equity": 0.2})                              # IPS decision 30
+        self.assertEqual(spec.secondary_share, {"equity": 0.2, "bond": 0.3})                 # IPS decisions 30, 31
         self.assertEqual((spec.benchmark_equity, spec.benchmark_bond), ("allworld_vanguard", "eur_govt_bond"))   # decision 29
 
     def test_bad_specs_are_rejected(self):

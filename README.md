@@ -3,7 +3,7 @@
 A risk-first, multi-asset ETF portfolio allocation system in Python.
 Allocation is driven mainly by risk; forecasts are limited and can only tilt, not drive, decisions.
 
-> **Status: early development.** Done: investment policy, profile configuration, pipeline stage 01 (data sourcing with cache and quality checks), stage 02 (selection of one ETF per category), stage 03 (NBP exchange rates, PLN returns, FX decomposition) and stage 04 (risk analysis) and stage 05 (allocation methods), all with tests.
+> **Status: early development.** Done: investment policy, profile configuration, pipeline stage 01 (data sourcing with cache and quality checks), stage 02 (selection of one ETF per category), stage 03 (NBP exchange rates, PLN returns, FX decomposition) and stage 04 (risk analysis) stage 05 (allocation methods) and stage 06 (walk-forward backtest), all with tests.
 > Not built yet: stages 06-08 (backtest, simulation, report). The rest of this README describes what is planned and is updated as each stage is built.
 >
 > Methodological and educational project. Not financial advice.
@@ -46,7 +46,7 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 03 | `pipeline/03_fx_returns.py` | NBP exchange rates, PLN returns, local vs FX decomposition | done |
 | 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | done |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | done |
-| 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | planned |
+| 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | built, not yet run on real data |
 | 07 | `pipeline/07_simulation.py` | Monte Carlo with contributions | planned |
 | 08 | `pipeline/08_report.py` | one report per investor profile | planned |
 
@@ -85,7 +85,7 @@ Other limits: short ETF histories, different listing currencies, no quality guar
 - [x] Stage 03 — FX and PLN returns (first live run of the NBP download still to confirm)
 - [x] Stage 04 — risk analysis
 - [x] Stage 05 — allocation methods (first tier: baselines, risk parity, minimum variance, HRP)
-- [ ] Stage 06 — backtest with contributions, costs, TWR and IRR
+- [x] Stage 06 — backtest with contributions, costs, TWR and IRR (built; first real run pending)
 - [ ] Stage 07 — Monte Carlo
 - [ ] Stage 08 — reports and multi-profile comparison
 
@@ -160,3 +160,12 @@ The loader rejects unknown parameters (typos) and inconsistent values, for examp
 ## Disclaimer
 
 For educational and methodological purposes only. Past performance does not predict future results. Nothing here is a recommendation to buy or sell any security.
+
+### Stage 06 - walk-forward backtest
+
+```bash
+python pipeline/06_backtest.py                       # owner profile
+python pipeline/06_backtest.py --profile prudent --cost-bps 25
+```
+
+At every month-end the choice of the ETFs, the covariance and the weights are recomputed with the data available up to that day; an ETF enters only after 504 days of history (no proxies). Monthly contributions buy the underweight ETFs; sales happen only outside the band or when an ETF leaves the portfolio; every trade pays `cost_bps` (`config/backtest.yaml`). It compares the allocation methods with the fixed 60/40 benchmark and writes `backtest_summary_full.csv`, `backtest_summary_common.csv`, `backtest_returns.csv`, `backtest_choices.csv`, `backtest_weights.csv`. It is a check of risk limits, costs and stability, not a promise of returns: no taxes, one history, no separate hold-out.

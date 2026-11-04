@@ -34,43 +34,13 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from prm.allocation.budgets import asset_budgets  # noqa: E402
-from prm.allocation.choose import choose_etfs  # noqa: E402
+from prm.allocation.build import METHODS, AllocationError, allocate, build_meta  # noqa: E402
 from prm.allocation.spec import DEFAULT_PORTFOLIO_PATH, load_portfolio  # noqa: E402
-from prm.allocation.targeting import enforce_limits, portfolio_vol, scale_to_target_vol  # noqa: E402
-from prm.allocation.weights import (  # noqa: E402
-    cap_weights, equal_weight, hrp, inverse_vol, min_variance, risk_budget, risk_parity,
-)
+from prm.allocation.targeting import portfolio_vol  # noqa: E402
 from prm.config import DEFAULT_PROFILES_PATH, DEFAULT_SETTINGS_PATH, load_data_settings, load_profiles  # noqa: E402
 from prm.data.universe import DEFAULT_UNIVERSE_PATH, load_universe  # noqa: E402
 from prm.risk.contributions import risk_contributions  # noqa: E402
-from prm.risk.covariance import annualise, common_window, ewma_cov, ledoit_wolf, sample_cov  # noqa: E402
 from prm.risk.metrics import hist_var_es, max_drawdown  # noqa: E402
-
-METHODS = ("equal_weight", "inverse_vol", "risk_parity", "risk_budget", "min_variance", "hrp")
-
-
-def _estimate_cov(window: pd.DataFrame, kind: str, lam: float) -> pd.DataFrame:
-    if kind == "sample":
-        return sample_cov(window)
-    if kind == "ewma":
-        return ewma_cov(window, lam)
-    return ledoit_wolf(window)[0]
-
-
-def _raw_weights(method: str, sleeve_cov: pd.DataFrame, max_weight: float, budgets: pd.Series) -> pd.Series:
-    if method == "equal_weight":
-        return equal_weight(sleeve_cov)
-    if method == "inverse_vol":
-        return inverse_vol(sleeve_cov)
-    if method == "risk_parity":
-        return risk_parity(sleeve_cov)
-    if method == "risk_budget":
-        return risk_budget(sleeve_cov, budgets)
-    if method == "min_variance":
-        return min_variance(sleeve_cov, max_weight)
-    return hrp(sleeve_cov)
-
 
 def _fx_share(w: pd.Series, pln: pd.DataFrame, local: pd.DataFrame) -> float:
     """Share of the portfolio's PLN variance due to the currency (fixed weights, rebalanced daily)."""
@@ -109,58 +79,20 @@ def main(argv: list[str] | None = None) -> int:
         print("Missing stage-02 output. Run first:  python pipeline/02_selection.py")
         return 1
     _, assets = load_universe(args.universe)
-    meta = pd.read_csv(processed / "selection.csv").set_index("asset_id")
-    meta["asset_class"] = {a.id: a.asset_class for a in assets}
-    meta["core"] = {a.id: a.core for a in assets}
-    meta = meta[meta["asset_class"].notna()]
-    meta["core"] = meta["core"].astype(bool)
-    meta["selected"] = meta["selected"].astype(bool)
-    meta["excluded_because"] = meta["excluded_because"].fillna("")
+    meta = build_meta(pd.read_csv(processed / "selection.csv"), assets)
 
-    # ---- which ETFs? (rules in choose.py, no performance used) ---------------------------------------
-    choice = choose_etfs(local, pln, meta, spec.rules)
-    choice.to_csv(processed / "etf_choice.csv", index=False)
-    risky = choice[choice["decision"] == "chosen"].sort_values(["asset_class", "order"])
-    cash_rows = choice[choice["decision"] == "cash"]
-    missing_cls = [c for c in spec.class_budgets if c not in set(risky["asset_class"])]
-    if cash_rows.empty or not {"equity", "bond"} <= set(risky["asset_class"]):
-        print("The choice rules left no cash-like ETF, or no equity / bond ETF. See etf_choice.csv.")
-        print(choice[choice["decision"] != "chosen"].to_string(index=False))
-        return 1
-    cash_id = str(cash_rows["asset_id"].iloc[0])
-    roles = dict(zip(risky["asset_id"], risky["asset_class"]))
-    roles[cash_id] = "cash"
-    ids = list(roles)
-    risky_ids = [a for a in ids if a != cash_id]
-    budgets = asset_budgets({a: roles[a] for a in risky_ids}, spec.class_budgets, spec.secondary_share)
-
+    # ---- which ETFs and which weights? (rules in choose.py, no performance used) --------------------
     bench_ids = [spec.benchmark_equity, spec.benchmark_bond]
-    bad = [b for b in bench_ids if b not in pln.columns or b not in local.columns]
-    if bad:
-        print(f"Benchmark ETFs of config/portfolio.yaml not found in the stage-03 files: {bad}")
+    try:
+        alloc = allocate(pln, local, meta, spec, profile, cov_kind, extra_ids=tuple(bench_ids), min_window=500)
+    except AllocationError as exc:
+        print(f"Allocation not possible: {exc}")
         return 1
-    all_ids = ids + [b for b in bench_ids if b not in ids]          # the benchmark ETFs only enter the 60/40 line
-    window = common_window(pln[all_ids])
-    if len(window) < 500:
-        print(f"Common window has only {len(window)} days: too short.")
-        return 1
-    local = local[all_ids].reindex(window.index)
-    pln = window
+    alloc.choice.to_csv(processed / "etf_choice.csv", index=False)
+    choice, cash_id, roles, ids, all_ids = alloc.choice, alloc.cash_id, alloc.roles, alloc.ids, alloc.all_ids
+    missing_cls, cov, pln, local = alloc.missing_classes, alloc.cov, alloc.pln, alloc.local
+    weights, status = dict(alloc.weights), dict(alloc.status)
 
-    cov_daily = _estimate_cov(pln, cov_kind, spec.ewma_lambda)
-    cov = annualise(cov_daily)
-    sleeve_cov = cov.loc[risky_ids, risky_ids]
-    cov_ids = cov.loc[ids, ids]
-
-    weights: dict[str, pd.Series] = {}
-    status: dict[str, tuple[float, str]] = {}
-    for method in METHODS:
-        raw = _raw_weights(method, sleeve_cov, profile.max_weight_per_etf, budgets)
-        capped = cap_weights(raw, profile.max_weight_per_etf)
-        scaled, k, st = scale_to_target_vol(capped, cov_ids, cash_id, profile.target_vol)
-        weights[method] = enforce_limits(scaled, roles, profile.max_weight_per_etf, profile.equity_cap, cash_id)
-        status[method] = (k, st)
-    weights = {m: w.reindex(all_ids).fillna(0.0) for m, w in weights.items()}
     bench = pd.Series(0.0, index=all_ids)
     bench[spec.benchmark_equity], bench[spec.benchmark_bond] = 0.6, 0.4
     weights["benchmark_60_40"] = bench

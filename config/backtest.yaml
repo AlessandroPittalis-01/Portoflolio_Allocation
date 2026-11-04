@@ -1,0 +1,18 @@
+# config/backtest.yaml  [PROPOSED - stage 06]
+#
+# Parameters of the walk-forward backtest. Declared BEFORE looking at any backtest result and not tuned on it
+# (IPS section 7). If you change one after seeing results, write the reason in the IPS.
+
+backtest:
+  # An ETF can be chosen, and the covariance can be estimated, only with this much past data (2 years).
+  # This is the rule that lets the backtest start early without proxies: young ETFs simply enter later.
+  min_train_days: 504
+
+  lookback_days: null            # null = expanding window (all the past); a number = rolling window of N days
+
+  monthly_contribution_pln: 2800 # about 650 EUR, the middle of the owner's 500-800 EUR range (IPS)
+
+  cost_bps: 10                   # [CALIBRATE] paid on every purchase/sale: spread + commission, an assumption.
+                                 # Robustness check: run with --cost-bps 5 and 25 (not to pick the best one).
+
+  methods: [equal_weight, inverse_vol, risk_parity, risk_budget, min_variance, hrp]

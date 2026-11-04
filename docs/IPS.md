@@ -48,6 +48,8 @@
 | 28 | Risk budgets by class | equity 50% / bond 35% / real (gold) 15% of the portfolio RISK (not of the capital). Split equally among the ETFs of a class. Owner approved the numbers on 2026-11-04; reading as RISK shares to be confirmed by the owner. They are policy numbers, not tuned on results; the volatility target, the 40% cap and the equity cap 50% still apply on top | `[DECIDED]` (risk-share reading `[PROPOSED]`) |
 | 29 | Benchmark 60/40 | fixed in `config/portfolio.yaml`: 60% allworld_vanguard + 40% eur_govt_bond, independent of the ETF choice, so the comparison does not move when the choice changes. Left untouched by volatility targeting and limits (the first version took the chosen ETFs and became 30% EM: not a fair benchmark) | `[DECIDED]` (owner 2026-11-04) |
 | 30 | Second equity ETF: limited risk budget | the equity budget (50% of risk) is split 80% to the first ETF (global) and 20% to the second (emerging markets), i.e. 10% of total risk. Reason: the global ETF already holds about 10% emerging markets, so an equal split (25% of total risk each, as in the first run) is a large unjustified overweight. 20% is a policy number set before seeing results and not tuned; classes without `secondary_share` split equally | `[DECIDED]` (owner 2026-11-04; the 20% value is `[CALIBRATE]` in the backtest only as a robustness check, not to optimise) |
+| 31 | Bonds: at most 2 ETFs, core 70% / second 30% | the core bond ETF (most representative, in practice broad euro government bonds) keeps 70% of the bond risk budget, the second (the most different one) 30%. Reason: in the 2026-11-04 run two of three bond slots were inflation-linked and carried twice the risk of the nominal bonds, while the bond class is meant to be the stable base. Structural reason, decided before any backtest | `[DECIDED]` (owner chose option A, 2026-11-04) |
+| 32 | Backtest design (stage 06) | walk-forward at every month-end: choice of ETFs, covariance and weights redone with data up to that day; an ETF or class enters only after 504 days of history (so no proxies are needed and the test can include 2020); monthly contribution 2800 PLN (about 650 EUR); rebalancing by buying, sales only outside the band or when an ETF leaves; cost 10 bps per trade; no taxes. Parameters in `config/backtest.yaml`, declared before the first run. Success = staying inside the risk limits at reasonable cost, not beating the benchmark | `[PROPOSED]` (parameters `[CALIBRATE]`) |
 
 Why #6 matters: a risk level whose plausible drawdowns exceed what the owner will
 actually tolerate is not implementable. The vol target must be consistent with the
@@ -165,7 +167,7 @@ band rule becomes more likely to trigger.
 ## 7. Evaluation protocol (anti-overfitting)
 
 - Walk-forward, transaction costs and FX costs included `[CALIBRATE]`.
-- Last 3 years held out, looked at once at the end.
+- Last 3 years held out, looked at once at the end. `[LIMIT 2026-11-04]` With about 5 years of common data plus the walk-forward warm-up, a separate hold-out is not possible: the whole walk-forward is run ONCE with declared parameters, and robustness is checked only with a few pre-declared variants (cost 5/10/25 bps, equity secondary share 10/20/30%), never to pick the best one.
 - Small parameter grid defined in advance. Pick a stable plateau, not the best point.
 - Cash flows simulated (monthly contributions): report time-weighted return AND IRR.
 - Metrics: vol, max drawdown, ES 95%, risk contributions, turnover, costs.
@@ -433,6 +435,9 @@ Proxies removed from code and universe (decision 27 withdrawn). Every candidate 
 Chosen: equity allworld_vanguard + em_equity; bonds eur_corp_bonds, inflation_linked, eur_inflation_linked; gold; cash xeon (cash_like, PLN vol 6.3%). xtrackers World was dropped as the same exposure (corr 0.99). With `risk_budget` the risk shares came out exactly 25/25 equity, 11.7 x3 bonds, 15 gold; capital: equity 36.5%, bonds 51%, gold 12.6% (the earlier guess of 25-30% equity was wrong). Owner profile: nothing reaches exactly 9% (no leverage); `risk_budget` 8.5% and `equal_weight` 8.6% are inside the 8-10% range, the others 7.4-7.9%. FX share of variance 36.8% (limit 30%); in-sample max drawdown -17.6%. Prudent: 6.5% reached with about 44% cash-like, drawdown -14% vs -12% goal.
 Two flaws found by reading the output, both fixed the same day: (1) first bond pick was alphabetical, which dropped eur_govt_bond and global_bond_hedged (fix: decision 26 point 4); (2) equal split of the equity budget made EM 25% of total risk (fix: decision 30). The benchmark became 30% EM (fix: decision 29). All numbers are in-sample, one regime (2022).
 
+### 2026-11-04 — Stage 06 (walk-forward backtest) built `[DECIDED]`
+`src/prm/backtest/` (simulate, engine, settings, report), `config/backtest.yaml`, `pipeline/06_backtest.py`; allocation logic moved into `prm.allocation.build.allocate`, used by stages 05 and 06. Month-end walk-forward without look-ahead in the allocation (tested: changing future data does not change past weights). Outputs: two summary tables (each strategy from its own start; common period from the benchmark start), choices over time, weights, daily TWR. Metrics: TWR, IRR, volatility, max drawdown, ES95, days below the alert/review drawdown, costs, turnover (sales only), months with sales, stability of the chosen set. Remaining look-ahead: stage-02 category winners (TER and flags of today) and the `core` list. Not yet run on real data.
+
 ## 10. Changelog
 
 - v0.1 — first draft from design conversation.
@@ -452,3 +457,4 @@ Two flaws found by reading the output, both fixed the same day: (1) first bond p
 - v0.13 — decisions 26-28 proposed (allocator chooses ETFs, proxies, class risk budgets); risk budgeting and `proxy_for` built.
 - v0.14 — decision 26 decided (rule-based choice per class), 27 withdrawn (no proxies), 28 decided (risk budgets 50/35/15); `choose.py`, `asset_class`/`core` labels, `risk_budget` method in stage 05; proxy code removed.
 - v0.15 — first real run read; decision 26 (first ETF = most representative), 29 (fixed 60/40 benchmark), 30 (second equity ETF at 20% of the equity risk budget).
+- v0.16 — decision 31 (bonds max 2, core 70% / second 30%), 32 (backtest design); stage 06 built; hold-out limit noted.
