@@ -82,12 +82,19 @@ class TestSimulate(unittest.TestCase):
         big = simulate(ret, sched, 5000.0, 0.0, 0.5).twr
         self.assertTrue(np.allclose(small.iloc[22:], big.iloc[22:], atol=1e-9))
 
-    def test_missing_return_on_a_held_etf_is_an_error(self):
+    def test_closed_exchange_day_leaves_the_etf_unchanged(self):
         ret = flat_returns(40)
-        d0 = ret.index[5]
-        ret.loc[ret.index[10], "a"] = np.nan
+        ret.loc[ret.index[10], "a"] = np.nan                 # holiday of the exchange of "a"
+        ret.loc[ret.index[11], "a"] = 0.02                   # the next return contains the gap
+        res = simulate(ret, {ret.index[5]: pd.Series({"a": 1.0})}, 100.0, 0.0, 0.05)
+        self.assertEqual(res.twr.iloc[10 - 5], 0.0)
+        self.assertAlmostEqual(res.value.iloc[-1], 102.0)
+
+    def test_held_etf_without_history_is_an_error(self):
+        ret = flat_returns(40)
+        ret["a"] = np.nan                                    # never listed
         with self.assertRaises(ValueError):
-            simulate(ret, {d0: pd.Series({"a": 1.0})}, 100.0, 0.0, 0.05)
+            simulate(ret, {ret.index[5]: pd.Series({"a": 1.0})}, 100.0, 0.0, 0.05)
 
     def test_irr_matches_a_known_case(self):
         c = pd.Series([100.0], index=[pd.Timestamp("2020-01-01")])

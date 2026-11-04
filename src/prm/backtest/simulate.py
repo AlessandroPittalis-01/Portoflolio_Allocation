@@ -6,6 +6,9 @@ Rules (IPS section 6)
   by more than the band. Sales are the exception because in Poland every sale in profit is taxed (Belka 19%).
   Taxes are NOT modelled here: accumulating ETFs defer them until the final sale.
 * Every purchase and sale pays ``cost_bps`` of the traded amount (spread + commission, an assumption).
+* A missing return of a held ETF means its exchange was closed that day (returns are computed between the ETF's own
+  trading days, so the next return already contains the gap): the ETF is left unchanged that day. A held ETF with no
+  return at all before that day (not listed yet) is an error.
 * Weights drift with the market between rebalance dates. Trades happen at the close of the rebalance date, and the
   target weights are computed with data up to that same close, so the next day's return is the first one earned.
 """
@@ -76,6 +79,7 @@ def simulate(returns: pd.DataFrame, schedule: dict[pd.Timestamp, pd.Series], con
     r = returns.loc[start:]
     R = r.to_numpy(dtype=float)
     idx = r.index
+    first_valid = np.array([returns[c].first_valid_index() or pd.Timestamp.max for c in cols], dtype="datetime64[ns]")
     v = np.zeros(len(cols))
     reb = {d: schedule[d].reindex(cols).fillna(0.0).to_numpy(dtype=float) for d in dates}
     twr, value, contr, trade_rows, hold_rows = [], [], {}, [], {}
@@ -84,9 +88,10 @@ def simulate(returns: pd.DataFrame, schedule: dict[pd.Timestamp, pd.Series], con
         ret = 0.0
         if k > 0 and mkt_value > 0:
             held = v > 0
-            if np.isnan(R[k][held]).any():
-                bad = [cols[i] for i in np.where(held & np.isnan(R[k]))[0]]
-                raise ValueError(f"missing return on {day.date()} for a held ETF: {bad}")
+            not_listed = held & (first_valid > np.datetime64(day))
+            if not_listed.any():
+                bad = [cols[i] for i in np.where(not_listed)[0]]
+                raise ValueError(f"held ETF without any return before {day.date()}: {bad}")
             v = v * (1 + np.nan_to_num(R[k]))
             ret = v.sum() / mkt_value - 1
         paid = 0.0
