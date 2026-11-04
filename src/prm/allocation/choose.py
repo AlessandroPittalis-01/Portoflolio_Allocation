@@ -10,9 +10,11 @@ Rules, in order
 3. Inside each risky class, similarity is measured by correlation of the daily returns on the class's common
    window. ETFs with correlation >= ``rho_max`` are the SAME exposure: they are grouped (average-linkage
    clustering) and only the most central one (medoid: highest average correlation with its group) can enter.
-4. The groups are ranked: the largest group first (the most representative exposure of the class), then, one by
-   one, the group whose medoid has the LOWEST maximum correlation with the ETFs already chosen (maximin
-   diversification). A class keeps at most ``max_etfs`` ETFs.
+4. The first ETF of a class is the most REPRESENTATIVE one: the medoid with the highest average correlation with
+   all the other eligible ETFs of the class. Then, one by one, the group whose medoid has the LOWEST maximum
+   correlation with the ETFs already chosen (maximin diversification). A class keeps at most ``max_etfs`` ETFs.
+   The order matters: the first ETF is the class's core holding (it keeps the larger share of the class budget,
+   see ``secondary_share`` in config/portfolio.yaml).
 Ties are broken by the ETF id, so the result is deterministic.
 """
 
@@ -96,12 +98,12 @@ def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int):
             if a != medoid[g]:
                 reasons[a] = f"same exposure as {medoid[g]} (corr {corr.loc[a, medoid[g]]:.2f} >= {rules.rho_max:.2f}), less central"
 
+    rep = {a: float(corr.loc[a].drop(a).mean()) for a in ids}          # average correlation with the whole class
     remaining = dict(groups)
     chosen: list[str] = []
-    first = sorted(remaining, key=lambda g: (-len(remaining[g]), medoid[g]))[0]
+    first = sorted(remaining, key=lambda g: (-rep[medoid[g]], medoid[g]))[0]
     chosen.append(medoid[first])
-    reasons[medoid[first]] = (f"most representative exposure of the class (group of {len(groups[first])})"
-                              if len(groups[first]) > 1 else "first choice: only group of its size, lowest id")
+    reasons[medoid[first]] = f"most representative of the class (average corr with the others {rep[medoid[first]]:.2f})"
     del remaining[first]
     while remaining and len(chosen) < limit:
         best = sorted(remaining, key=lambda g: (corr.loc[medoid[g], chosen].abs().max(), medoid[g]))[0]

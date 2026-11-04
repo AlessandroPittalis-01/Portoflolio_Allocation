@@ -61,6 +61,27 @@ class TestChoose(unittest.TestCase):
         self.assertEqual(int(((d["asset_class"] == "bond") & (d["decision"] == "chosen")).sum()), 1)
         self.assertIn("already has 1", d.loc["corp", "reason"] + d.loc["linker", "reason"])
 
+    def test_first_etf_is_the_most_representative_not_the_first_in_alphabetical_order(self):
+        rng = np.random.default_rng(5)
+        n = 1200
+        idx = pd.bdate_range("2019-01-01", periods=n, name="date")
+        rates = rng.normal(0, 0.004, n)
+        r = pd.DataFrame({"a_odd": 0.3 * rates + rng.normal(0, 0.005, n),          # alphabetically first, but atypical
+                          "m_core": rates + rng.normal(0, 0.0015, n),
+                          "z_other": 0.7 * rates + rng.normal(0, 0.003, n)}, index=idx)
+        meta = pd.DataFrame({"asset_class": "bond", "core": True, "selected": True, "currency": "EUR",
+                             "history_years": 6.0, "excluded_because": ""}, index=r.columns)
+        d = choose_etfs(r, r, meta, ChoiceRules(0.9, {"bond": 2}, 300, 5)).set_index("asset_id")
+        self.assertEqual(d.loc["m_core", "order"], 1)
+        self.assertIn("most representative", d.loc["m_core", "reason"])
+        self.assertNotEqual(d.loc["a_odd", "order"], 1)
+
+    def test_order_column_gives_the_core_holding_first(self):
+        d = self.decisions()
+        eq = d[(d["asset_class"] == "equity") & (d["decision"] == "chosen")].sort_values("order")
+        self.assertEqual(list(eq["order"]), [1, 2])
+        self.assertEqual(eq.index[0], "world_a")
+
     def test_cash_is_the_one_with_lowest_volatility(self):
         d = self.decisions()
         self.assertEqual(d.loc["cash1", "decision"], "cash")

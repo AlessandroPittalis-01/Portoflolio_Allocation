@@ -145,13 +145,16 @@ class TestTargeting(unittest.TestCase):
 
 class TestSpec(unittest.TestCase):
     BASE = ("allocation:\n  class_budgets: {equity: 0.5, bond: 0.35, real: 0.15}\n"
-            "  max_etfs: {equity: 2, bond: 3, real: 1}\n  selection: {rho_max: 0.9}\n")
+            "  max_etfs: {equity: 2, bond: 3, real: 1}\n  selection: {rho_max: 0.9}\n"
+            "  secondary_share: {equity: 0.2}\n  benchmark_60_40: {equity: a, bond: b}\n")
 
     def test_real_file_loads_and_matches_the_ips(self):
         spec = load_portfolio(DEFAULT_PORTFOLIO_PATH)
         self.assertEqual(spec.class_budgets, {"equity": 0.5, "bond": 0.35, "real": 0.15})      # IPS decision 28
         self.assertLessEqual(sum(spec.rules.max_etfs.values()), 6)                           # IPS decision 9
         self.assertEqual(spec.rules.currency, "EUR")                                         # IPS decision 23
+        self.assertEqual(spec.secondary_share, {"equity": 0.2})                              # IPS decision 30
+        self.assertEqual((spec.benchmark_equity, spec.benchmark_bond), ("allworld_vanguard", "eur_govt_bond"))   # decision 29
 
     def test_bad_specs_are_rejected(self):
         b = self.BASE
@@ -163,6 +166,10 @@ class TestSpec(unittest.TestCase):
                 b.replace("equity: 2, bond: 3", "equity: 4, bond: 3"),       # more than 6 in total
                 b.replace("rho_max: 0.9", "rho_max: 1.5"),
                 b + "  covariance: nope\n",
+                b.replace("equity: 0.2}", "equity: 1.2}"),                   # secondary share out of range
+                b.replace("secondary_share: {equity", "secondary_share: {real2"),   # unknown class
+                b.replace("equity: a, bond: b", "equity: a, bond: a"),        # benchmark legs equal
+                b.replace("  benchmark_60_40: {equity: a, bond: b}\n", ""),   # no benchmark
                 "allocation: {}\n"]
         for text in bads:
             path = Path(tempfile.mkdtemp()) / "p.yaml"
@@ -183,7 +190,8 @@ class TestStage05(unittest.TestCase):
             "  max_cache_age_days: 1\nquality:\n  max_daily_move: 0.12\n  max_gap_days: 7\n  max_stale_days: 5\n")
         (self.tmp / "portfolio.yaml").write_text(
             "allocation:\n  class_budgets: {equity: 0.5, bond: 0.35, real: 0.15}\n  max_etfs: {equity: 2, bond: 2, real: 1}\n"
-            "  selection: {rho_max: 0.9, min_overlap_days: 500, min_history_years: 5}\n")
+            "  selection: {rho_max: 0.9, min_overlap_days: 500, min_history_years: 5}\n"
+            "  secondary_share: {equity: 0.2}\n  benchmark_60_40: {equity: eq3, bond: b2}\n")
         classes = {"eq1": "equity", "eq2": "equity", "eq3": "equity", "b1": "bond", "b2": "bond", "gld": "real", "cash": "cash"}
         lines = ["criteria: {}", "implementable:"]
         for i, c in classes.items():
@@ -227,11 +235,16 @@ class TestStage05(unittest.TestCase):
         chosen = pd.read_csv(self.processed / "etf_choice.csv").set_index("asset_id")
         self.assertEqual(sum(chosen.loc[["eq1", "eq2", "eq3"], "decision"] == "chosen"), 1)   # 3 clones -> 1 ETF
         eq = [a for a in ("eq1", "eq2", "eq3") if chosen.loc[a, "decision"] == "chosen"][0]
-        self.assertAlmostEqual(w.loc["benchmark_60_40", eq], 0.6)                         # benchmark left untouched
-        self.assertAlmostEqual(w.loc["benchmark_60_40", ["b1", "b2"]].sum(), 0.4)
+        self.assertAlmostEqual(w.loc["benchmark_60_40", "eq3"], 0.6)                      # fixed benchmark, left untouched
+        self.assertAlmostEqual(w.loc["benchmark_60_40", "b2"], 0.4)
+        self.assertAlmostEqual(w.loc["benchmark_60_40"].sum(), 1.0)
+        for method in ("risk_budget", "hrp"):                                             # benchmark ETFs not chosen get 0
+            for a in ("eq1", "eq2", "eq3"):
+                if a in w.columns and chosen.loc[a, "decision"] != "chosen":
+                    self.assertEqual(w.loc[method, a], 0.0)
         shares = pd.read_csv(self.processed / "allocation_risk_shares.csv", index_col="method")
         self.assertTrue(np.allclose(shares.sum(axis=1), 1.0))
-        rb = shares.loc["risk_budget"]                                  # before the cash mix, budgets 50/35/15 hold in the risky sleeve
+        rb = shares.loc["risk_budget"]
         self.assertGreater(rb[eq], rb["gld"])
 
     def test_no_returns_are_reported(self):
@@ -303,3 +316,26 @@ class TestRiskBudget(unittest.TestCase):
             asset_budgets({"x": "crypto"}, {"equity": 1.0})
         with self.assertRaises(ValueError):
             asset_budgets({"x": "equity"}, {"equity": 0.0})
+
+
+class TestSecondaryShare(unittest.TestCase):
+    def test_first_etf_keeps_the_larger_part_of_the_class_budget(self):
+        from prm.allocation.budgets import asset_budgets
+        roles = {"core": "equity", "tilt": "equity", "bd": "bond"}
+        b = asset_budgets(roles, {"equity": 0.6, "bond": 0.4}, {"equity": 0.2})
+        self.assertAlmostEqual(b["core"], 0.48)
+        self.assertAlmostEqual(b["tilt"], 0.12)
+        self.assertAlmostEqual(b["bd"], 0.4)
+
+    def test_several_secondary_etfs_share_equally_and_single_etf_ignores_it(self):
+        from prm.allocation.budgets import asset_budgets
+        b = asset_budgets({"c": "equity", "t1": "equity", "t2": "equity"}, {"equity": 1.0}, {"equity": 0.3})
+        self.assertTrue(np.allclose(b.values, [0.7, 0.15, 0.15]))
+        b = asset_budgets({"c": "equity", "x": "bond"}, {"equity": 0.5, "bond": 0.5}, {"equity": 0.3})
+        self.assertAlmostEqual(b["c"], 0.5)
+
+    def test_bad_secondary_share_is_rejected(self):
+        from prm.allocation.budgets import asset_budgets
+        for bad in (0.0, 1.0, -0.1):
+            with self.assertRaises(ValueError):
+                asset_budgets({"a": "equity", "b": "equity"}, {"equity": 1.0}, {"equity": bad})

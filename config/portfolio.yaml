@@ -13,6 +13,15 @@ allocation:
   # At most this many ETFs per class (total <= 6, IPS decision 9).
   max_etfs: {equity: 2, bond: 3, real: 1}
 
+  # Equity: the first ETF (global) keeps 80% of the equity risk budget, the second (emerging markets) only 20%,
+  # i.e. 10% of the total risk. Why: the global ETF already holds about 10% emerging markets, so an equal split
+  # (25% of total risk each) would be a large, unjustified overweight. 20% is a policy number written BEFORE
+  # seeing results, not tuned (IPS decision 30). Classes not listed here split their budget equally.
+  secondary_share: {equity: 0.20}
+
+  # Fixed benchmark: it does not depend on the ETF choice (IPS decision 29).
+  benchmark_60_40: {equity: allworld_vanguard, bond: eur_govt_bond}
+
   selection:
     rho_max: 0.90             # correlation >= this = same exposure, only the most central ETF is kept
     min_overlap_days: 500     # a class needs this many common days to measure similarity

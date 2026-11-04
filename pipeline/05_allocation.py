@@ -12,7 +12,7 @@ the ETFs of each class are chosen by a mathematical rule (correlation groups, me
 
 Methods: equal weight, inverse volatility, risk parity (ERC), risk budget (50/35/15), minimum variance (capped), HRP.
 Each gives weights for the risky ETFs; then the mix with the cash-like ETF is scaled to the profile's volatility
-target (no leverage) and the profile limits are applied. The 60/40 benchmark (60% equity ETFs, 40% bond ETFs, equal inside) is shown as it is, with no targeting.
+target (no leverage) and the profile limits are applied. The 60/40 benchmark (two fixed ETFs from config/portfolio.yaml) is shown as it is, with no targeting.
 
 HOW TO READ THE RESULT (important)
 * It is a SNAPSHOT with all the data of the common window (about 5 years, including 2022). It is in-sample.
@@ -132,36 +132,42 @@ def main(argv: list[str] | None = None) -> int:
     roles[cash_id] = "cash"
     ids = list(roles)
     risky_ids = [a for a in ids if a != cash_id]
-    budgets = asset_budgets({a: roles[a] for a in risky_ids}, spec.class_budgets)
+    budgets = asset_budgets({a: roles[a] for a in risky_ids}, spec.class_budgets, spec.secondary_share)
 
-    window = common_window(pln[ids])
+    bench_ids = [spec.benchmark_equity, spec.benchmark_bond]
+    bad = [b for b in bench_ids if b not in pln.columns or b not in local.columns]
+    if bad:
+        print(f"Benchmark ETFs of config/portfolio.yaml not found in the stage-03 files: {bad}")
+        return 1
+    all_ids = ids + [b for b in bench_ids if b not in ids]          # the benchmark ETFs only enter the 60/40 line
+    window = common_window(pln[all_ids])
     if len(window) < 500:
         print(f"Common window has only {len(window)} days: too short.")
         return 1
-    local = local[ids].reindex(window.index)
+    local = local[all_ids].reindex(window.index)
     pln = window
 
     cov_daily = _estimate_cov(pln, cov_kind, spec.ewma_lambda)
     cov = annualise(cov_daily)
     sleeve_cov = cov.loc[risky_ids, risky_ids]
+    cov_ids = cov.loc[ids, ids]
 
     weights: dict[str, pd.Series] = {}
     status: dict[str, tuple[float, str]] = {}
     for method in METHODS:
         raw = _raw_weights(method, sleeve_cov, profile.max_weight_per_etf, budgets)
         capped = cap_weights(raw, profile.max_weight_per_etf)
-        scaled, k, st = scale_to_target_vol(capped, cov, cash_id, profile.target_vol)
+        scaled, k, st = scale_to_target_vol(capped, cov_ids, cash_id, profile.target_vol)
         weights[method] = enforce_limits(scaled, roles, profile.max_weight_per_etf, profile.equity_cap, cash_id)
         status[method] = (k, st)
-    bench = pd.Series(0.0, index=ids)                    # 60% equity ETFs + 40% bond ETFs, equal inside the class
-    for cls, share in (("equity", 0.6), ("bond", 0.4)):
-        members = [a for a in risky_ids if roles[a] == cls]
-        bench[members] = share / len(members)
+    weights = {m: w.reindex(all_ids).fillna(0.0) for m, w in weights.items()}
+    bench = pd.Series(0.0, index=all_ids)
+    bench[spec.benchmark_equity], bench[spec.benchmark_bond] = 0.6, 0.4
     weights["benchmark_60_40"] = bench
     status["benchmark_60_40"] = (1.0, "no_targeting")
 
     # ---- table of results ------------------------------------------------------------------------
-    w_table = pd.DataFrame(weights).T[ids]
+    w_table = pd.DataFrame(weights).T[all_ids]
     rows, rc_rows = [], {}
     for method, w in weights.items():
         rc = risk_contributions(w, cov)
@@ -169,7 +175,7 @@ def main(argv: list[str] | None = None) -> int:
         port = pln @ w
         dd = max_drawdown(port)
         _, es99 = hist_var_es(port, 0.99)
-        equity_w = float(sum(w[a] for a in ids if roles[a] == "equity"))
+        equity_w = float(sum(w[a] for a in all_ids if meta.loc[a, "asset_class"] == "equity"))
         rows.append({
             "method": method,
             "risky_share_k": status[method][0],
@@ -186,7 +192,7 @@ def main(argv: list[str] | None = None) -> int:
             "es99_insample": es99,
         })
     summary = pd.DataFrame(rows)
-    risk_shares = pd.DataFrame(rc_rows).T[ids]
+    risk_shares = pd.DataFrame(rc_rows).T[all_ids]
 
     w_table.to_csv(processed / "allocation_weights.csv", index_label="method")
     summary.to_csv(processed / "allocation_summary.csv", index=False)

@@ -19,6 +19,9 @@ MAX_RISKY_ETFS = 6                                       # IPS decision 9
 class PortfolioSpec:
     class_budgets: dict[str, float]    # share of portfolio RISK per class (sums to 1)
     rules: ChoiceRules                 # how the ETFs of each class are chosen
+    secondary_share: dict[str, float]  # share of a class budget given to its non-core ETFs (absent = equal split)
+    benchmark_equity: str              # fixed 60/40 benchmark legs (IPS decision 29), independent of the choice
+    benchmark_bond: str
     covariance: str                    # sample | ewma | ledoit_wolf
     ewma_lambda: float
 
@@ -42,6 +45,14 @@ def load_portfolio(path: Path | str = DEFAULT_PORTFOLIO_PATH) -> PortfolioSpec:
             raise ValueError(f"max_etfs['{cls}'] must be an integer >= 1")
     if sum(max_etfs[c] for c in budgets) > MAX_RISKY_ETFS:
         raise ValueError(f"at most {MAX_RISKY_ETFS} risky ETFs in total (IPS decision 9)")
+    secondary = {str(k): float(v) for k, v in (raw.get("secondary_share") or {}).items()}
+    for cls, s in secondary.items():
+        if cls not in budgets or not 0 < s < 1:
+            raise ValueError(f"secondary_share['{cls}'] needs a class in class_budgets and a value strictly between 0 and 1")
+    bench = raw.get("benchmark_60_40") or {}
+    b_eq, b_bd = bench.get("equity"), bench.get("bond")
+    if not isinstance(b_eq, str) or not isinstance(b_bd, str) or b_eq == b_bd:
+        raise ValueError("benchmark_60_40 needs two different ETF ids: 'equity' and 'bond'")
     sel = raw.get("selection") or {}
     rho = float(sel.get("rho_max", 0.90))
     if not 0 < rho < 1:
@@ -58,4 +69,4 @@ def load_portfolio(path: Path | str = DEFAULT_PORTFOLIO_PATH) -> PortfolioSpec:
         raise ValueError("ewma_lambda must be in (0, 1]")
     rules = ChoiceRules(rho_max=rho, max_etfs={c: max_etfs[c] for c in budgets}, min_overlap_days=overlap,
                         min_history_years=hist, currency=str(sel.get("currency", "EUR")))
-    return PortfolioSpec(budgets, rules, cov, lam)
+    return PortfolioSpec(budgets, rules, secondary, b_eq, b_bd, cov, lam)
