@@ -34,7 +34,9 @@ import pandas as pd
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
-from prm.allocation.build import METHODS, AllocationError, allocate, build_meta  # noqa: E402
+from prm.allocation.build import (  # noqa: E402
+    METHODS, AllocationError, allocate, build_meta, equity_budget_curve, smallest_budget_reaching_target,
+)
 from prm.allocation.spec import DEFAULT_PORTFOLIO_PATH, load_portfolio  # noqa: E402
 from prm.allocation.targeting import portfolio_vol  # noqa: E402
 from prm.config import DEFAULT_PROFILES_PATH, DEFAULT_SETTINGS_PATH, load_data_settings, load_profiles  # noqa: E402
@@ -57,6 +59,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--profiles", default=str(DEFAULT_PROFILES_PATH))
     parser.add_argument("--portfolio", default=str(DEFAULT_PORTFOLIO_PATH))
     parser.add_argument("--universe", default=str(DEFAULT_UNIVERSE_PATH))
+    parser.add_argument("--solve-equity-budget", action="store_true",
+                        help="print the volatility reached by each equity risk budget and the smallest one that reaches the target")
     parser.add_argument("--profile", default="owner", help="prudent, balanced, dynamic or owner")
     parser.add_argument("--cov", default="", help="sample, ewma or ledoit_wolf (default: the one in portfolio.yaml)")
     args = parser.parse_args(argv)
@@ -80,6 +84,29 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     _, assets = load_universe(args.universe)
     meta = build_meta(pd.read_csv(processed / "selection.csv"), assets)
+
+    if args.solve_equity_budget:
+        try:
+            curve = equity_budget_curve(pln, local, meta, spec, profile, cov_kind)
+        except AllocationError as exc:
+            print(f"Allocation not possible: {exc}")
+            return 1
+        best = smallest_budget_reaching_target(curve)
+        show = curve.copy()
+        for c in ("vol_model", "risky_share_k", "equity_w", "bond_w", "real_w", "cash_w"):
+            show[c] = (show[c] * 100).round(1)
+        print(f"\nEQUITY RISK BUDGET CURVE, profile '{args.profile}' (target {profile.target_vol:.1%}, max {profile.max_weight_per_etf:.0%} "
+              f"per ETF, equity cap {profile.equity_cap:.0%}). Bond : gold budgets keep the proportion {spec.class_budgets}")
+        print("Only the covariance of the common window is used. No returns.\n")
+        print(show.to_string(index=False))
+        if best is None:
+            top = curve.loc[curve["vol_model"].idxmax()]
+            print(f"\nNo equity budget reaches the target with these limits. Highest volatility: {top['vol_model']:.1%} "
+                  f"at equity budget {top['equity_risk_budget']:.3f}: the limits (not the budget) are binding.")
+        else:
+            print(f"\nSmallest equity risk budget that reaches the target: {best:.3f}. Round UP to the next 5% and write it in "
+                  "config/portfolio.yaml and in the IPS BEFORE re-running the backtest.")
+        return 0
 
     # ---- which ETFs and which weights? (rules in choose.py, no performance used) --------------------
     bench_ids = [spec.benchmark_equity, spec.benchmark_bond]

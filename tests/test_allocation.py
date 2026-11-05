@@ -252,6 +252,36 @@ class TestStage05(unittest.TestCase):
         rb = shares.loc["risk_budget"]
         self.assertGreater(rb[eq], rb["gld"])
 
+    def test_solve_equity_budget_curve(self):
+        code, out = self.run_stage(["--solve-equity-budget"])
+        self.assertEqual(code, 0, out)
+        self.assertIn("EQUITY RISK BUDGET CURVE", out)
+        self.assertFalse((self.processed / "allocation_weights.csv").exists())          # a read-only exploration
+
+    def test_curve_volatility_rises_with_the_equity_budget_and_the_smallest_budget_is_found(self):
+        from prm.allocation.build import allocate, build_meta, equity_budget_curve, smallest_budget_reaching_target
+        from prm.config import load_profiles
+        pln = pd.read_csv(self.processed / "returns_pln.csv", index_col="date", parse_dates=True)
+        local = pd.read_csv(self.processed / "returns_local.csv", index_col="date", parse_dates=True)
+        _, assets = load_universe(self.tmp / "universe.yaml")
+        meta = build_meta(pd.read_csv(self.processed / "selection.csv"), assets)
+        spec = load_portfolio(self.tmp / "portfolio.yaml")
+        prof = load_profiles()["owner"]
+        curve = equity_budget_curve(pln, local, meta, spec, prof, "ledoit_wolf", grid=(0.3, 0.4, 0.5, 0.6, 0.7))
+        self.assertTrue((curve["vol_model"] <= prof.target_vol + 1e-6).all())            # never above the target
+        self.assertTrue((curve["equity_w"] <= prof.equity_cap + 1e-9).all())
+        first = smallest_budget_reaching_target(curve)
+        if first is not None:
+            self.assertTrue(curve[curve["equity_risk_budget"] < first]["reaches_target"].eq(False).all())
+        self.assertGreaterEqual(curve["equity_w"].iloc[-1], curve["equity_w"].iloc[0] - 1e-9)   # more equity risk, more equity weight
+
+    def test_smallest_budget_helper(self):
+        from prm.allocation.build import smallest_budget_reaching_target
+        curve = pd.DataFrame({"equity_risk_budget": [0.3, 0.4, 0.5], "reaches_target": [False, True, True]})
+        self.assertEqual(smallest_budget_reaching_target(curve), 0.4)
+        curve["reaches_target"] = False
+        self.assertIsNone(smallest_budget_reaching_target(curve))
+
     def test_no_returns_are_reported(self):
         _, out = self.run_stage()
         s = pd.read_csv(self.processed / "allocation_summary.csv")

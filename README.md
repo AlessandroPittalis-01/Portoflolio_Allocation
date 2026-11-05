@@ -142,6 +142,7 @@ Stage 05 (offline). Chooses the ETFs of each class by mathematical rules (`src/p
 ```bash
 python pipeline/05_allocation.py                            # owner profile
 python pipeline/05_allocation.py --profile prudent --cov ewma
+python pipeline/05_allocation.py --solve-equity-budget     # volatility reached by each equity risk budget (covariance only)
 ```
 
 It prints weights, volatility, risk shares, FX share and in-sample drawdown, and writes `etf_choice.csv` (why each candidate was chosen or not), `allocation_weights.csv`, `allocation_summary.csv`, `allocation_risk_shares.csv`. It shows no returns on purpose: it is a snapshot, not a performance test. Class budgets and choice rules are in `config/portfolio.yaml`; it needs the output of stage 02 (`selection.csv`).

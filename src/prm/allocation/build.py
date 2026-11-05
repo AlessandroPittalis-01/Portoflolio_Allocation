@@ -6,14 +6,14 @@ available up to that date, which is what makes the backtest walk-forward).
 
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 import pandas as pd
 
 from prm.allocation.budgets import asset_budgets
 from prm.allocation.choose import ChoiceRules, choose_etfs
 from prm.allocation.spec import PortfolioSpec
-from prm.allocation.targeting import enforce_limits, scale_to_target_vol
+from prm.allocation.targeting import enforce_limits, portfolio_vol, scale_to_target_vol
 from prm.allocation.weights import (
     cap_weights, equal_weight, hrp, inverse_vol, min_variance, risk_budget, risk_parity,
 )
@@ -120,3 +120,36 @@ def build_meta(selection: pd.DataFrame, assets) -> pd.DataFrame:
     meta["selected"] = meta["selected"].astype(bool)
     meta["excluded_because"] = meta["excluded_because"].fillna("")
     return meta
+
+
+def equity_budget_curve(pln: pd.DataFrame, local: pd.DataFrame, meta: pd.DataFrame, spec: PortfolioSpec, profile: Profile,
+                        cov_kind: str, grid: tuple[float, ...] = tuple(round(0.30 + 0.025 * i, 3) for i in range(21)),
+                        min_window: int = 500, tol: float = 0.0005) -> pd.DataFrame:
+    """Ex-ante rule for the equity risk budget (IPS decision 36): what does each equity risk budget give?
+
+    For every equity budget ``e`` in ``grid`` the other classes keep their mutual proportions (bond : real = 35 : 15)
+    and share ``1 - e``; the ``risk_budget`` method is run with the usual targeting and limits. The result tells which
+    is the SMALLEST ``e`` whose final volatility reaches the profile target. Only the covariance is used: no returns.
+    """
+    others = {c: v for c, v in spec.class_budgets.items() if c != "equity"}
+    total_others = sum(others.values())
+    rows = []
+    for e in grid:
+        budgets = {"equity": e, **{c: v / total_others * (1.0 - e) for c, v in others.items()}}
+        alloc = allocate(pln, local, meta, replace(spec, class_budgets=budgets), profile, cov_kind,
+                         min_window=min_window, methods=("risk_budget",))
+        w = alloc.weights["risk_budget"]
+        k, status = alloc.status["risk_budget"]
+        cls = pd.Series(alloc.roles)
+        by_class = {c: float(w[[a for a in cls.index if cls[a] == c]].sum()) for c in ("equity", "bond", "real", "cash")}
+        vol = portfolio_vol(w, alloc.cov)
+        rows.append({"equity_risk_budget": e, "vol_model": vol, "status": status, "risky_share_k": k,
+                     "equity_w": by_class["equity"], "bond_w": by_class["bond"], "real_w": by_class["real"],
+                     "cash_w": by_class["cash"], "reaches_target": bool(vol >= profile.target_vol - tol)})
+    return pd.DataFrame(rows)
+
+
+def smallest_budget_reaching_target(curve: pd.DataFrame) -> float | None:
+    """Smallest equity budget whose final volatility reaches the target, or ``None`` if none does."""
+    ok = curve[curve["reaches_target"]]
+    return float(ok["equity_risk_budget"].min()) if len(ok) else None
