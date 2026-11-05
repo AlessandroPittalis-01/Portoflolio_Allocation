@@ -11,7 +11,7 @@ import numpy as np
 import pandas as pd
 
 from prm.backtest.bootstrap import (
-    load_bootstrap, paired_difference, path_metrics, run_bootstrap, stationary_indices, summarise_paths,
+    load_bootstrap, paired_difference, path_metrics, run_bootstrap, stationary_indices, summarise_paths, threshold_grid,
 )
 from prm.backtest.report import longest_underwater_years
 from prm.risk.metrics import drawdown_series
@@ -112,6 +112,16 @@ class TestRun(unittest.TestCase):
         self.assertTrue(((s[["hit_alert", "hit_review", "hit_stop"]] >= 0) & (s[["hit_alert", "hit_review", "hit_stop"]] <= 1)).all().all())
 
 
+class TestGrid(unittest.TestCase):
+    def test_grid_is_monotone_and_matches_the_hit_flags(self):
+        df = fake_returns()
+        m = run_bootstrap(df, 504, 21, 300, 21, -0.10, -0.18, -0.25, seed=3)
+        g = threshold_grid(m, list(df.columns), (-0.10, -0.18, -0.25))
+        self.assertTrue((g.diff().dropna() <= 1e-12).all().all())                 # deeper level, lower probability
+        self.assertTrue(np.allclose(g.loc[-0.18].to_numpy(), m["hit_review"].mean(axis=0)))
+        self.assertTrue(np.allclose(g.loc[-0.25].to_numpy(), m["hit_stop"].mean(axis=0)))
+
+
 class TestSettings(unittest.TestCase):
     def test_real_file_loads(self):
         cfg = load_bootstrap()
@@ -153,7 +163,7 @@ class TestStage07(unittest.TestCase):
     def test_end_to_end(self):
         code, out = self.run_stage()
         self.assertEqual(code, 0, out)
-        for f in ("bootstrap_summary.csv", "bootstrap_paired.csv", "bootstrap_sensitivity.csv"):
+        for f in ("bootstrap_summary.csv", "bootstrap_paired.csv", "bootstrap_sensitivity.csv", "bootstrap_threshold_grid.csv"):
             self.assertTrue((self.processed / f).exists(), f)
         self.assertIn("READ WITH CARE", out)
         self.assertIn("ROBUSTNESS", out)

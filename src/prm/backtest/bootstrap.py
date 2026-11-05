@@ -158,3 +158,17 @@ def paired_difference(metrics: dict[str, np.ndarray], names: list[str], referenc
             row[f"{key}_share_positive"] = float((d > 0).mean())
         rows.append(row)
     return pd.DataFrame(rows).set_index("strategy")
+
+
+GRID_LEVELS = (-0.10, -0.125, -0.15, -0.175, -0.20, -0.225, -0.25, -0.30)
+
+
+def threshold_grid(metrics: dict[str, np.ndarray], names: list[str], levels: tuple[float, ...] = GRID_LEVELS) -> pd.DataFrame:
+    """Probability that the maximum drawdown of a 10-year path reaches AT LEAST each level (rows = levels).
+
+    Used to calibrate alert / review / stop thresholds: a threshold that almost every path crosses is a routine event,
+    not an alert.
+    """
+    dd = metrics["max_dd"]
+    return pd.DataFrame({name: [float((dd[:, j] <= lvl).mean()) for lvl in levels] for j, name in enumerate(names)},
+                        index=pd.Index(levels, name="drawdown_level"))

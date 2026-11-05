@@ -4,6 +4,7 @@ Reads  : data/processed/backtest_returns_full.csv (stage 06), config/bootstrap.y
 Writes : data/processed/bootstrap_summary.csv       quantiles and threshold probabilities per strategy
          data/processed/bootstrap_paired.csv        each strategy minus the reference, on the same paths
          data/processed/bootstrap_sensitivity.csv   the same summary with other block lengths
+         data/processed/bootstrap_threshold_grid.csv  probability of reaching each drawdown level in 10 years (threshold calibration)
 
 WHAT IT SAYS: how much drawdown, time under water and the gap between strategies depend on the order of the days
 we have seen. WHAT IT DOES NOT SAY: nothing outside the sample can appear (no new regime), the paths keep the
@@ -25,7 +26,7 @@ import pandas as pd
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from prm.backtest.bootstrap import (  # noqa: E402
-    DEFAULT_BOOTSTRAP_PATH, TRADING_DAYS, load_bootstrap, paired_difference, run_bootstrap, summarise_paths,
+    DEFAULT_BOOTSTRAP_PATH, TRADING_DAYS, load_bootstrap, paired_difference, run_bootstrap, summarise_paths, threshold_grid,
 )
 from prm.config import DEFAULT_PROFILES_PATH, DEFAULT_SETTINGS_PATH, load_data_settings, load_profiles  # noqa: E402
 
@@ -88,6 +89,8 @@ def main(argv: list[str] | None = None) -> int:
         _, s = run(b)
         s.insert(0, "mean_block_days", b)
         sens.append(s.reset_index())
+    grid = threshold_grid(metrics, names)
+    grid.to_csv(processed / "bootstrap_threshold_grid.csv")
     summary.to_csv(processed / "bootstrap_summary.csv")
     paired.to_csv(processed / "bootstrap_paired.csv")
     if sens:
@@ -107,6 +110,11 @@ def main(argv: list[str] | None = None) -> int:
               f"   shallower in {r['max_dd_share_positive']*100:.0f}% of paths")
         print(f"  time under water {r['underwater_years_diff_median']:+.1f} years [{r['underwater_years_diff_p05']:+.1f}, "
               f"{r['underwater_years_diff_p95']:+.1f}]   shorter in {(1 - r['underwater_years_share_positive'])*100:.0f}% of paths")
+    print("\nPROBABILITY THAT THE MAXIMUM DRAWDOWN OF A 10-YEAR PATH REACHES AT LEAST EACH LEVEL (%)  [for calibrating the thresholds]\n")
+    shown = (grid * 100).round(1)
+    shown.index = [f"{lvl * 100:.1f}%" for lvl in grid.index]
+    print(shown.to_string())
+    print("A threshold that almost every path crosses is a routine event, not an alert.")
     if sens:
         s = pd.concat(sens)
         print("\nROBUSTNESS to the block length (probability of drawdown at or below the review level, %)\n")
@@ -118,7 +126,7 @@ def main(argv: list[str] | None = None) -> int:
     print(" * The paths keep the historical mean return: it measures sampling noise, it is NOT a forecast.")
     print(" * The ETF choice is not repeated on each path (the walk-forward output is resampled).")
     print(" * Use it to judge the SIZE of differences and to calibrate drawdown thresholds, not to pick the 'best' strategy.")
-    print("\nWrote bootstrap_summary.csv, bootstrap_paired.csv, bootstrap_sensitivity.csv in", processed)
+    print("\nWrote bootstrap_summary.csv, bootstrap_paired.csv, bootstrap_sensitivity.csv, bootstrap_threshold_grid.csv in", processed)
     return 0
 
 
