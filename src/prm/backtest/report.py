@@ -10,6 +10,18 @@ from prm.config import Profile
 from prm.risk.metrics import TRADING_DAYS, drawdown_series, hist_var_es, max_drawdown
 
 
+def longest_underwater_years(dd: pd.Series) -> float:
+    """Longest stretch (in years of 252 days) spent below a previous peak."""
+    if dd.empty:
+        return float("nan")
+    below = (dd < -1e-12).to_numpy()
+    best = run = 0
+    for flag in below:
+        run = run + 1 if flag else 0
+        best = max(best, run)
+    return best / TRADING_DAYS
+
+
 def summarise(sim: SimResult, profile: Profile) -> dict:
     r = sim.twr.iloc[1:] if len(sim.twr) > 1 else sim.twr
     r = r[sim.value.reindex(r.index) > 0]
@@ -29,6 +41,7 @@ def summarise(sim: SimResult, profile: Profile) -> dict:
         "vol_ann": float(r.std() * np.sqrt(TRADING_DAYS)) if n > 1 else float("nan"),
         "max_dd": max_drawdown(r)["max_dd"] if n else float("nan"),
         "es95_daily": es95,
+        "max_underwater_years": longest_underwater_years(dd),
         "days_below_alert_pct": float((dd <= profile.dd_alert).mean()) if n else float("nan"),
         "days_below_review_pct": float((dd <= profile.dd_review).mean()) if n else float("nan"),
         "contributed_pln": float(sim.contributions.sum()),

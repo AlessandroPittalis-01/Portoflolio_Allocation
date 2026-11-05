@@ -15,6 +15,10 @@ Rules, in order
    correlation with the ETFs already chosen (maximin diversification). A class keeps at most ``max_etfs`` ETFs.
    The order matters: the first ETF is the class's core holding (it keeps the larger share of the class budget,
    see ``secondary_share`` in config/portfolio.yaml).
+5. Stability (only when the choice is repeated in time, stage 06): an ETF already held ("incumbent") keeps its place
+   unless a challenger is better by more than ``switch_margin`` (in correlation units, 0.10). Inside a group of the
+   same exposure the incumbent always represents the group. This avoids selling and re-buying (and paying tax) for
+   differences that are noise. The rule never looks at returns.
 Ties are broken by the ETF id, so the result is deterministic.
 """
 
@@ -37,6 +41,7 @@ class ChoiceRules:
     min_overlap_days: int = 500
     min_history_years: float = 5.0
     currency: str = "EUR"
+    switch_margin: float = 0.10              # 0 switches the stability rule off
 
     def limit(self, asset_class: str) -> int:
         return int((self.max_etfs or {}).get(asset_class, 1))
@@ -76,12 +81,14 @@ def _trim_to_overlap(returns: pd.DataFrame, ids: list[str], meta: pd.DataFrame, 
         dropped.append(worst)
 
 
-def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int):
+def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int, incumbents: list[str] | None = None):
     """Cluster, take medoids, order them. Returns (chosen ids in order, {id: reason})."""
     ids = list(corr.index)
     reasons: dict[str, str] = {}
     if len(ids) == 1:
         return ids, {ids[0]: "only eligible ETF of its class"}
+    margin = rules.switch_margin
+    inc = [a for a in (incumbents or []) if a in ids] if margin > 0 else []
     dist = (1.0 - corr.values).clip(min=0)
     dist = (dist + dist.T) / 2
     np.fill_diagonal(dist, 0.0)
@@ -90,38 +97,61 @@ def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int):
     for a, g in zip(ids, labels):
         groups.setdefault(int(g), []).append(a)
 
+    def centrality(a: str, members: list[str]) -> float:
+        return float(corr.loc[a, members].drop(a).mean()) if len(members) > 1 else 1.0
+
     medoid: dict[int, str] = {}
     for g, members in groups.items():
-        score = {a: (corr.loc[a, members].drop(a).mean() if len(members) > 1 else 1.0, ) for a in members}
-        medoid[g] = sorted(members, key=lambda a: (-score[a][0], a))[0]
+        held = [a for a in members if a in inc]
+        pool = held or members                          # an incumbent always represents its group
+        medoid[g] = sorted(pool, key=lambda a: (-centrality(a, members), a))[0]
         for a in members:
             if a != medoid[g]:
-                reasons[a] = f"same exposure as {medoid[g]} (corr {corr.loc[a, medoid[g]]:.2f} >= {rules.rho_max:.2f}), less central"
+                how = "incumbent kept" if held else "less central"
+                reasons[a] = f"same exposure as {medoid[g]} (corr {corr.loc[a, medoid[g]]:.2f} >= {rules.rho_max:.2f}), {how}"
 
     rep = {a: float(corr.loc[a].drop(a).mean()) for a in ids}          # average correlation with the whole class
     remaining = dict(groups)
     chosen: list[str] = []
-    first = sorted(remaining, key=lambda g: (-rep[medoid[g]], medoid[g]))[0]
+    ranked = sorted(remaining, key=lambda g: (-rep[medoid[g]], medoid[g]))
+    first = ranked[0]
+    core = inc[0] if inc else None                      # the previous core ETF of the class
+    if core is not None:
+        g_core = next((g for g, members in groups.items() if core in members), None)
+        if g_core is not None and rep[medoid[g_core]] >= rep[medoid[first]] - margin:
+            first = g_core
     chosen.append(medoid[first])
-    reasons[medoid[first]] = f"most representative of the class (average corr with the others {rep[medoid[first]]:.2f})"
+    kept = medoid[first] in inc and medoid[first] != medoid[ranked[0]]
+    reasons[medoid[first]] = (f"incumbent core kept: {medoid[ranked[0]]} is better by less than {margin:.2f}" if kept
+                              else f"most representative of the class (average corr with the others {rep[medoid[first]]:.2f})")
     del remaining[first]
     while remaining and len(chosen) < limit:
-        best = sorted(remaining, key=lambda g: (corr.loc[medoid[g], chosen].abs().max(), medoid[g]))[0]
-        m = medoid[best]
-        reasons[m] = f"most different from {', '.join(chosen)} (max corr {corr.loc[m, chosen].max():.2f})"
+        score = {g: float(corr.loc[medoid[g], chosen].abs().max()) for g in remaining}
+        best = sorted(remaining, key=lambda g: (score[g], medoid[g]))[0]
+        keep = sorted((g for g in remaining if medoid[g] in inc and score[g] <= score[best] + margin),
+                      key=lambda g: (score[g], medoid[g]))
+        pick = keep[0] if keep else best
+        m = medoid[pick]
+        if pick != best:
+            reasons[m] = (f"incumbent kept: {medoid[best]} is more different by less than {margin:.2f} "
+                          f"(max corr {score[pick]:.2f} vs {score[best]:.2f})")
+        else:
+            reasons[m] = f"most different from {', '.join(chosen)} (max corr {corr.loc[m, chosen].max():.2f})"
         chosen.append(m)
-        del remaining[best]
+        del remaining[pick]
     for g in remaining:
         m = medoid[g]
         reasons[m] = f"class already has {limit} ETF(s); closest to chosen ones (max corr {corr.loc[m, chosen].max():.2f})"
     return chosen, reasons
 
 
-def choose_etfs(returns: pd.DataFrame, pln_returns: pd.DataFrame, meta: pd.DataFrame, rules: ChoiceRules) -> pd.DataFrame:
+def choose_etfs(returns: pd.DataFrame, pln_returns: pd.DataFrame, meta: pd.DataFrame, rules: ChoiceRules,
+                incumbents: list[str] | None = None) -> pd.DataFrame:
     """Return one row per asset in ``meta``: asset_class, decision (chosen / cash / rejected), reason.
 
     ``returns`` = daily returns used for similarity (local currency, so that EUR/PLN does not make every
     euro asset look alike); ``pln_returns`` = used only to find the cash-like ETF with the lowest PLN volatility.
+    ``incumbents`` = ETFs held now, core first (stability rule); ``None`` for a one-off choice.
     """
     meta = meta.copy()
     why = eligibility(meta, rules)
@@ -158,7 +188,7 @@ def choose_etfs(returns: pd.DataFrame, pln_returns: pd.DataFrame, meta: pd.DataF
                 reason[a] = f"common window of the class has only {len(window)} days"
             continue
         corr = window.corr()
-        chosen, reasons = _pick_class(corr, rules, rules.limit(cls))
+        chosen, reasons = _pick_class(corr, rules, rules.limit(cls), incumbents)
         for a, text in reasons.items():
             reason[a] = text
         for i, a in enumerate(chosen, start=1):

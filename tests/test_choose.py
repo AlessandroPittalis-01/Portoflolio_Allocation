@@ -5,7 +5,7 @@ import unittest
 import numpy as np
 import pandas as pd
 
-from prm.allocation.choose import ChoiceRules, choose_etfs, eligibility
+from prm.allocation.choose import ChoiceRules, _pick_class, choose_etfs, eligibility
 
 RULES = ChoiceRules(rho_max=0.90, max_etfs={"equity": 2, "bond": 3, "real": 1}, min_overlap_days=300, min_history_years=5)
 
@@ -120,6 +120,48 @@ class TestChoose(unittest.TestCase):
 
     def test_eligibility_is_empty_for_good_assets(self):
         self.assertTrue((eligibility(self.meta, RULES) == "").all())
+
+
+def corr_matrix(ids, pairs):
+    c = pd.DataFrame(np.eye(len(ids)), index=ids, columns=ids)
+    for (a, b), v in pairs.items():
+        c.loc[a, b] = c.loc[b, a] = v
+    return c
+
+
+class TestStability(unittest.TestCase):
+    RULES = ChoiceRules(0.90, {"bond": 2}, 300, 5, "EUR", 0.10)
+
+    def pick(self, corr, incumbents=None, rules=None):
+        return _pick_class(corr, rules or self.RULES, 2, incumbents)[0]
+
+    def test_incumbent_second_etf_is_kept_when_the_challenger_is_only_slightly_better(self):
+        c = corr_matrix(["A", "B", "C"], {("A", "B"): 0.75, ("A", "C"): 0.80, ("B", "C"): 0.40})
+        self.assertEqual(self.pick(c), ["A", "B"])                                   # one-off choice: lowest correlation
+        self.assertEqual(self.pick(c, ["A", "C"]), ["A", "C"])                       # 0.80 is within 0.10 of 0.75
+
+    def test_incumbent_is_replaced_when_the_challenger_is_clearly_better(self):
+        c = corr_matrix(["A", "B", "C"], {("A", "B"): 0.60, ("A", "C"): 0.80, ("B", "C"): 0.40})
+        self.assertEqual(self.pick(c, ["A", "C"]), ["A", "B"])
+
+    def test_margin_zero_switches_the_stability_rule_off(self):
+        c = corr_matrix(["A", "B", "C"], {("A", "B"): 0.75, ("A", "C"): 0.80, ("B", "C"): 0.40})
+        off = ChoiceRules(0.90, {"bond": 2}, 300, 5, "EUR", 0.0)
+        self.assertEqual(self.pick(c, ["A", "C"], off), ["A", "B"])
+
+    def test_incumbent_represents_its_group_even_if_a_clone_is_more_central(self):
+        c = corr_matrix(["A", "A2", "B"], {("A", "A2"): 0.99, ("A", "B"): 0.80, ("A2", "B"): 0.70})
+        self.assertEqual(self.pick(c)[0], "A")                                       # A is more central
+        self.assertEqual(self.pick(c, ["A2"])[0], "A2")                              # but A2 is held: no switch for a clone
+
+    def test_incumbent_core_is_kept_when_representativeness_is_close(self):
+        c = corr_matrix(["A", "B", "C"], {("A", "B"): 0.80, ("A", "C"): 0.50, ("B", "C"): 0.55})
+        self.assertEqual(self.pick(c)[0], "B")                                       # B has the highest average correlation
+        self.assertEqual(self.pick(c, ["A"])[0], "A")                                # A is within 0.10 of B and is held
+
+    def test_ineligible_incumbent_is_ignored(self):
+        c = corr_matrix(["A", "B"], {("A", "B"): 0.6})
+        self.assertEqual(sorted(self.pick(c, ["gone"])), ["A", "B"])
 
 
 if __name__ == "__main__":

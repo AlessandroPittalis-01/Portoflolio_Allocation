@@ -156,6 +156,8 @@ class TestSpec(unittest.TestCase):
         self.assertEqual(spec.rules.currency, "EUR")                                         # IPS decision 23
         self.assertEqual(spec.secondary_share, {"equity": 0.2, "bond": 0.3})                 # IPS decisions 30, 31
         self.assertEqual((spec.benchmark_equity, spec.benchmark_bond), ("allworld_vanguard", "eur_govt_bond"))   # decision 29
+        self.assertEqual(spec.benchmark_long, ("world_xtrackers", "eur_govt_bond"))                           # decision 34
+        self.assertEqual(spec.rules.switch_margin, 0.10)
 
     def test_bad_specs_are_rejected(self):
         b = self.BASE
@@ -167,6 +169,8 @@ class TestSpec(unittest.TestCase):
                 b.replace("equity: 2, bond: 3", "equity: 4, bond: 3"),       # more than 6 in total
                 b.replace("rho_max: 0.9", "rho_max: 1.5"),
                 b + "  covariance: nope\n",
+                b.replace("selection: {rho_max: 0.9}", "selection: {rho_max: 0.9, switch_margin: 0.7}"),
+                b + "  benchmark_60_40_long: {equity: x, bond: x}\n",
                 b.replace("equity: 0.2}", "equity: 1.2}"),                   # secondary share out of range
                 b.replace("secondary_share: {equity", "secondary_share: {real2"),   # unknown class
                 b.replace("equity: a, bond: b", "equity: a, bond: a"),        # benchmark legs equal

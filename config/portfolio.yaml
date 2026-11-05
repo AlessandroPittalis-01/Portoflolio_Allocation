@@ -25,12 +25,17 @@ allocation:
 
   # Fixed benchmark: it does not depend on the ETF choice (IPS decision 29).
   benchmark_60_40: {equity: allworld_vanguard, bond: eur_govt_bond}
+  # Second benchmark for the backtest only: the same idea with an older world ETF (corr 0.99 with the one above),
+  # so that the comparison covers the whole walk-forward, COVID included (IPS decision 34).
+  benchmark_60_40_long: {equity: world_xtrackers, bond: eur_govt_bond}
 
   selection:
     rho_max: 0.90             # correlation >= this = same exposure, only the most central ETF is kept
     min_overlap_days: 500     # a class needs this many common days to measure similarity
     min_history_years: 5      # same as the stage-02 criterion
     currency: EUR             # IPS decision 23
+    switch_margin: 0.10       # stability rule (IPS decision 34): a held ETF keeps its place unless a challenger is
+                              # better by more than this (correlation units). Structural, not tuned on performance.
 
   covariance: ledoit_wolf     # sample | ewma | ledoit_wolf   (declared in advance, not tuned)
   ewma_lambda: 0.94

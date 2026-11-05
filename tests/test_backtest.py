@@ -12,7 +12,8 @@ import pandas as pd
 
 from prm.allocation.build import build_meta
 from prm.allocation.spec import load_portfolio
-from prm.backtest.engine import BENCHMARK, history_years_asof, month_ends, walk_forward
+from prm.backtest.engine import BENCHMARK, BENCHMARK_LONG, history_years_asof, month_ends, walk_forward
+from prm.backtest.report import longest_underwater_years
 from prm.backtest.settings import BacktestSettings, load_backtest
 from prm.backtest.simulate import irr, simulate
 from prm.config import load_profiles
@@ -106,6 +107,14 @@ class TestSimulate(unittest.TestCase):
             simulate(flat_returns(), {}, 100.0, 0.0, 0.05)
 
 
+class TestUnderwater(unittest.TestCase):
+    def test_longest_stretch_below_a_peak(self):
+        dd = pd.Series([0, -0.01, -0.02, 0, 0, -0.01, -0.01, -0.01, -0.01, 0.0])
+        self.assertAlmostEqual(longest_underwater_years(dd), 4 / 252)
+        self.assertEqual(longest_underwater_years(pd.Series([0.0, 0.0])), 0.0)
+        self.assertTrue(np.isnan(longest_underwater_years(pd.Series(dtype=float))))
+
+
 class TestSettings(unittest.TestCase):
     def test_real_file_loads(self):
         bt = load_backtest()
@@ -149,10 +158,11 @@ def make_meta():
                          "history_years": 9.0, "excluded_because": "", "category": pd.Series({k: f"c_{k}" for k in CLASSES})})
 
 
-def write_portfolio(path: Path, bench=("eq_old", "bd1")):
+def write_portfolio(path: Path, bench=("eq_old", "bd1"), long_bench=None, margin=0.10):
     path.write_text("allocation:\n  class_budgets: {equity: 0.5, bond: 0.35, real: 0.15}\n  max_etfs: {equity: 2, bond: 2, real: 1}\n"
-                    "  selection: {rho_max: 0.9, min_overlap_days: 500, min_history_years: 5}\n  secondary_share: {equity: 0.2, bond: 0.3}\n"
-                    f"  benchmark_60_40: {{equity: {bench[0]}, bond: {bench[1]}}}\n")
+                    f"  selection: {{rho_max: 0.9, min_overlap_days: 500, min_history_years: 5, switch_margin: {margin}}}\n  secondary_share: {{equity: 0.2, bond: 0.3}}\n"
+                    f"  benchmark_60_40: {{equity: {bench[0]}, bond: {bench[1]}}}\n"
+                    + (f"  benchmark_60_40_long: {{equity: {long_bench[0]}, bond: {long_bench[1]}}}\n" if long_bench else ""))
     return load_portfolio(path)
 
 
@@ -220,6 +230,19 @@ class TestWalkForward(unittest.TestCase):
         wf2 = walk_forward(self.pln, self.local, self.meta, young, self.profile, "ledoit_wolf", self.bt)
         self.assertGreaterEqual(wf2.benchmark_start, pd.Timestamp("2018-12-01"))             # young ETF + 2 years
 
+    def test_long_benchmark_starts_earlier_than_the_young_etf_benchmark(self):
+        spec = write_portfolio(self.tmp / "p3.yaml", ("eq_young", "bd1"), ("eq_old", "bd1"))
+        wf = walk_forward(self.pln, self.local, self.meta, spec, self.profile, "ledoit_wolf", self.bt)
+        self.assertLess(min(wf.schedules[BENCHMARK_LONG]), min(wf.schedules[BENCHMARK]))
+        self.assertTrue(all(abs(w["eq_old"] - 0.6) < 1e-12 for w in wf.schedules[BENCHMARK_LONG].values()))
+
+    def test_stability_rule_reduces_changes_of_the_chosen_set(self):
+        def changes(margin):
+            spec = write_portfolio(self.tmp / f"m{margin}.yaml", margin=margin)
+            wf = walk_forward(self.pln, self.local, self.meta, spec, self.profile, "ledoit_wolf", self.bt)
+            return int((wf.choices["risky"] != wf.choices["risky"].shift()).sum() - 1)
+        self.assertLessEqual(changes(0.10), changes(0.0))
+
     def test_too_little_data_skips_every_date(self):
         wf = walk_forward(self.pln.iloc[:300], self.local.iloc[:300], self.meta, self.spec, self.profile, "ledoit_wolf", self.bt)
         self.assertEqual(len(wf.schedules["risk_budget"]), 0)
@@ -234,7 +257,7 @@ class TestStage06(unittest.TestCase):
         (self.tmp / "settings.yaml").write_text(
             f'data:\n  start_date: "2010-01-01"\n  raw_dir: {self.tmp / "raw"}\n  processed_dir: {self.processed}\n'
             "  max_cache_age_days: 1\nquality:\n  max_daily_move: 0.12\n  max_gap_days: 7\n  max_stale_days: 5\n")
-        write_portfolio(self.tmp / "portfolio.yaml")
+        write_portfolio(self.tmp / "portfolio.yaml", long_bench=("eq_old", "bd1"))
         (self.tmp / "backtest.yaml").write_text("backtest:\n  min_train_days: 504\n  monthly_contribution_pln: 2800\n  cost_bps: 10\n"
                                                 "  methods: [equal_weight, risk_budget]\n")
         lines = ["criteria: {}", "implementable:"]
@@ -262,10 +285,14 @@ class TestStage06(unittest.TestCase):
         code, out = self.run_stage()
         self.assertEqual(code, 0, out)
         for name in ("backtest_summary_full.csv", "backtest_summary_common.csv", "backtest_returns.csv",
-                     "backtest_choices.csv", "backtest_weights.csv"):
+                     "backtest_choices.csv", "backtest_weights.csv", "backtest_class_weights.csv"):
             self.assertTrue((self.processed / name).exists(), name)
         full = pd.read_csv(self.processed / "backtest_summary_full.csv", index_col="strategy")
-        self.assertEqual(set(full.index), {"equal_weight", "risk_budget", "benchmark_60_40"})
+        self.assertEqual(set(full.index), {"equal_weight", "risk_budget", "benchmark_60_40", "benchmark_60_40_long"})
+        self.assertTrue((full["max_underwater_years"] >= 0).all())
+        cw = pd.read_csv(self.processed / "backtest_class_weights.csv")
+        self.assertTrue(np.allclose(cw.groupby(["date", "method"])["weight"].sum(), 1.0))
+        self.assertIn("AVERAGE TARGET WEIGHT BY CLASS", out)
         self.assertTrue((full["costs_pln"] > 0).all())
         self.assertTrue((full["max_dd"] <= 0).all())
         self.assertTrue((full["final_value_pln"] > 0).all())

@@ -22,6 +22,7 @@ from prm.backtest.settings import BacktestSettings
 from prm.config import Profile
 
 BENCHMARK = "benchmark_60_40"
+BENCHMARK_LONG = "benchmark_60_40_long"        # same idea with an older world ETF (IPS decision 34)
 
 
 @dataclass
@@ -49,28 +50,33 @@ def walk_forward(pln: pd.DataFrame, local: pd.DataFrame, meta: pd.DataFrame, spe
                  cov_kind: str, bt: BacktestSettings) -> WalkForward:
     rules = replace(spec.rules, min_history_years=bt.min_train_days / 252, min_overlap_days=bt.min_train_days)
     schedules: dict[str, dict] = {m: {} for m in bt.methods}
-    schedules[BENCHMARK] = {}
+    benches = {BENCHMARK: (spec.benchmark_equity, spec.benchmark_bond)}
+    if spec.benchmark_long:
+        benches[BENCHMARK_LONG] = spec.benchmark_long
+    for name in benches:
+        schedules[name] = {}
     rows, skipped = [], []
-    bench = [spec.benchmark_equity, spec.benchmark_bond]
     bench_start = None
+    incumbents: list[str] | None = None
     for d in month_ends(pln.index):
         p, l = pln.loc[:d], local.loc[:d]
-        if bench_start is None and all(b in l.columns and l[b].count() >= bt.min_train_days for b in bench):
-            bench_start = d
         m = meta.copy()
         hist = history_years_asof(l)
         m["history_years"] = hist.reindex(m.index).fillna(0.0)
         try:
             alloc = allocate(p, l, m, spec, profile, cov_kind, min_window=bt.min_train_days, rules=rules,
-                             lookback_days=bt.lookback_days, methods=bt.methods)
+                             lookback_days=bt.lookback_days, methods=bt.methods, incumbents=incumbents)
         except AllocationError as exc:
             skipped.append((d, str(exc)))
             continue
+        incumbents = list(alloc.risky_ids)
         for method, w in alloc.weights.items():
             schedules[method][d] = w[w > 0]
         rows.append({"date": d, "risky": " ".join(alloc.risky_ids), "cash": alloc.cash_id, "n_risky": len(alloc.risky_ids),
                      "missing_classes": " ".join(alloc.missing_classes)})
-        if bench_start is not None:
-            schedules[BENCHMARK][d] = pd.Series({bench[0]: 0.6, bench[1]: 0.4})
+        for name, (eq, bd) in benches.items():            # a benchmark starts when both of its ETFs have enough history
+            if all(x in l.columns and l[x].count() >= bt.min_train_days for x in (eq, bd)):
+                schedules[name][d] = pd.Series({eq: 0.6, bd: 0.4})
+    bench_start = min(schedules[BENCHMARK]) if schedules[BENCHMARK] else None
     choices = pd.DataFrame(rows).set_index("date") if rows else pd.DataFrame(columns=["risky", "cash", "n_risky", "missing_classes"])
     return WalkForward(schedules, choices, skipped, bench_start)

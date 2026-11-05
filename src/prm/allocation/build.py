@@ -68,9 +68,10 @@ def raw_weights(method: str, sleeve_cov: pd.DataFrame, max_weight: float, budget
 
 def allocate(pln: pd.DataFrame, local: pd.DataFrame, meta: pd.DataFrame, spec: PortfolioSpec, profile: Profile,
              cov_kind: str, extra_ids: tuple[str, ...] = (), min_window: int = 500, rules: ChoiceRules | None = None,
-             lookback_days: int | None = None, methods: tuple[str, ...] = METHODS) -> Allocation:
+             lookback_days: int | None = None, methods: tuple[str, ...] = METHODS,
+             incumbents: list[str] | None = None) -> Allocation:
     """Choose the ETFs with the rules, then compute the weights of every method. Raises AllocationError."""
-    choice = choose_etfs(local, pln, meta, rules or spec.rules)
+    choice = choose_etfs(local, pln, meta, rules or spec.rules, incumbents)
     risky = choice[choice["decision"] == "chosen"].sort_values(["asset_class", "order"])
     cash_rows = choice[choice["decision"] == "cash"]
     if cash_rows.empty or not {"equity", "bond"} <= set(risky["asset_class"]):

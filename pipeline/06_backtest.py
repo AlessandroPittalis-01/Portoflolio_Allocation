@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "src"))
 
 from prm.allocation.build import build_meta  # noqa: E402
 from prm.allocation.spec import DEFAULT_PORTFOLIO_PATH, load_portfolio  # noqa: E402
-from prm.backtest.engine import BENCHMARK, walk_forward  # noqa: E402
+from prm.backtest.engine import BENCHMARK, BENCHMARK_LONG, walk_forward  # noqa: E402
 from prm.backtest.report import summarise  # noqa: E402
 from prm.backtest.settings import DEFAULT_BACKTEST_PATH, load_backtest  # noqa: E402
 from prm.backtest.simulate import simulate  # noqa: E402
@@ -54,6 +54,7 @@ def _show(df: pd.DataFrame) -> pd.DataFrame:
     for c in ("contributed_pln", "final_value_pln", "costs_pln"):
         out[c] = out[c].round(0)
     out["years"] = out["years"].round(1)
+    out["max_underwater_years"] = out["max_underwater_years"].round(1)
     return out
 
 
@@ -99,7 +100,7 @@ def main(argv: list[str] | None = None) -> int:
         return 1
     band = profile.rebalance_band_pp
     all_cols = list(pln.columns)
-    strategies = [*bt.methods, *([BENCHMARK] if wf.schedules[BENCHMARK] else [])]
+    strategies = [*bt.methods, *[b for b in (BENCHMARK, BENCHMARK_LONG) if wf.schedules.get(b)]]
 
     full, common, daily = {}, {}, {}
     for name in strategies:
@@ -127,7 +128,14 @@ def main(argv: list[str] | None = None) -> int:
     for method in bt.methods:
         for d, w in wf.schedules[method].items():
             rows += [{"date": d, "method": method, "asset": a, "weight": float(x)} for a, x in w.items()]
-    pd.DataFrame(rows).to_csv(processed / "backtest_weights.csv", index=False)
+    wdf = pd.DataFrame(rows)
+    wdf.to_csv(processed / "backtest_weights.csv", index=False)
+    cls_of = meta["asset_class"].to_dict()
+    wdf["asset_class"] = wdf["asset"].map(cls_of)
+    class_w = wdf.groupby(["date", "method", "asset_class"])["weight"].sum().reset_index()
+    class_w.to_csv(processed / "backtest_class_weights.csv", index=False)
+    avg_class = (class_w.pivot_table(index=["date", "method"], columns="asset_class", values="weight", fill_value=0.0)
+                 .groupby("method").mean().reindex(bt.methods))
 
     # ---- console ----------------------------------------------------------------------------------------------
     first, last = min(wf.schedules[bt.methods[0]]), pln.index.max()
@@ -148,11 +156,15 @@ def main(argv: list[str] | None = None) -> int:
             prev = key
     changes = int((wf.choices["risky"] != wf.choices["risky"].shift()).sum() - 1)
     print(f"  -> {changes} changes of the risky set in {len(wf.choices)} months")
+    print("\nAVERAGE TARGET WEIGHT BY CLASS (%, mean of the month-end targets; a class is 0 while no ETF of it is eligible)\n")
+    print((avg_class * 100).round(1).to_string())
     print("\nFULL PERIOD, each strategy from its own first date (%, after costs; twr/irr = annual, not a prediction)\n")
     print(_show(full_df).to_string())
     if common:
-        print(f"\nCOMMON PERIOD from {wf.benchmark_start.date()} (start of the 60/40 benchmark): fair comparison\n")
+        print(f"\nCOMMON PERIOD from {wf.benchmark_start.date()} (start of the 60/40 benchmark with the all-world ETF): fair comparison\n")
         print(_show(common_df).to_string())
+    print("\nbenchmark_60_40_long = 60% world_xtrackers + 40% eur_govt_bond: same idea, older ETF, so it covers the whole period.")
+    print("max_underwater_years = longest time below a previous peak (time-weighted return, so contributions do not hide it).")
     print("\nREAD WITH CARE")
     print(" * Not a performance test: one history, one regime sequence; no hold-out period is possible with this data.")
     print(" * Look-ahead left: stage 02 picked category winners with today's TER/flags; the 'core' list knows today's ETFs.")

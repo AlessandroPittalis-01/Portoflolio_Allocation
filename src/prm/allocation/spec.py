@@ -24,6 +24,7 @@ class PortfolioSpec:
     benchmark_bond: str
     covariance: str                    # sample | ewma | ledoit_wolf
     ewma_lambda: float
+    benchmark_long: tuple[str, str] | None = None   # optional second 60/40 with older ETFs (equity, bond), backtest only
 
 
 def load_portfolio(path: Path | str = DEFAULT_PORTFOLIO_PATH) -> PortfolioSpec:
@@ -53,10 +54,20 @@ def load_portfolio(path: Path | str = DEFAULT_PORTFOLIO_PATH) -> PortfolioSpec:
     b_eq, b_bd = bench.get("equity"), bench.get("bond")
     if not isinstance(b_eq, str) or not isinstance(b_bd, str) or b_eq == b_bd:
         raise ValueError("benchmark_60_40 needs two different ETF ids: 'equity' and 'bond'")
+    long_b = raw.get("benchmark_60_40_long")
+    bench_long = None
+    if long_b:
+        le, lb = long_b.get("equity"), long_b.get("bond")
+        if not isinstance(le, str) or not isinstance(lb, str) or le == lb:
+            raise ValueError("benchmark_60_40_long needs two different ETF ids: 'equity' and 'bond'")
+        bench_long = (le, lb)
     sel = raw.get("selection") or {}
     rho = float(sel.get("rho_max", 0.90))
     if not 0 < rho < 1:
         raise ValueError("selection.rho_max must be in (0, 1)")
+    margin = float(sel.get("switch_margin", 0.10))
+    if not 0 <= margin < 0.5:
+        raise ValueError("selection.switch_margin must be in [0, 0.5)")
     overlap = int(sel.get("min_overlap_days", 500))
     hist = float(sel.get("min_history_years", 5))
     if overlap < 100 or hist <= 0:
@@ -68,5 +79,5 @@ def load_portfolio(path: Path | str = DEFAULT_PORTFOLIO_PATH) -> PortfolioSpec:
     if not 0 < lam <= 1:
         raise ValueError("ewma_lambda must be in (0, 1]")
     rules = ChoiceRules(rho_max=rho, max_etfs={c: max_etfs[c] for c in budgets}, min_overlap_days=overlap,
-                        min_history_years=hist, currency=str(sel.get("currency", "EUR")))
-    return PortfolioSpec(budgets, rules, secondary, b_eq, b_bd, cov, lam)
+                        min_history_years=hist, currency=str(sel.get("currency", "EUR")), switch_margin=margin)
+    return PortfolioSpec(budgets, rules, secondary, b_eq, b_bd, cov, lam, bench_long)
