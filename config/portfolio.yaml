@@ -7,8 +7,10 @@
 allocation:
   # Share of the portfolio's RISK (not of the capital) carried by each class. Must add up to 1.
   # Inside a class the budget is split equally among its ETFs. Equity is the only class that earns the
-  # long-run premium, so it gets half of the risk; gold diversifies; bonds (and their EUR/PLN risk) the rest.
-  class_budgets: {equity: 0.50, bond: 0.35, real: 0.15}
+  # long-run premium. IPS decision 36: equity gets the SMALLEST risk budget whose final volatility reaches the
+  # 9% target (found once with `05_allocation.py --solve-equity-budget`, covariance only, no returns): 0.60.
+  # Bond : gold keep the proportion 35 : 15 on the remaining 0.40 (0.28 and 0.12).
+  class_budgets: {equity: 0.60, bond: 0.28, real: 0.12}
 
   # At most this many ETFs per class (total <= 6, IPS decision 9).
   max_etfs: {equity: 2, bond: 2, real: 1}

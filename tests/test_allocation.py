@@ -150,7 +150,7 @@ class TestSpec(unittest.TestCase):
 
     def test_real_file_loads_and_matches_the_ips(self):
         spec = load_portfolio(DEFAULT_PORTFOLIO_PATH)
-        self.assertEqual(spec.class_budgets, {"equity": 0.5, "bond": 0.35, "real": 0.15})      # IPS decision 28
+        self.assertEqual(spec.class_budgets, {"equity": 0.6, "bond": 0.28, "real": 0.12})      # IPS decisions 28, 36
         self.assertLessEqual(sum(spec.rules.max_etfs.values()), 6)
         self.assertEqual(spec.rules.max_etfs, {"equity": 2, "bond": 2, "real": 1})                           # IPS decision 9
         self.assertEqual(spec.rules.currency, "EUR")                                         # IPS decision 23
