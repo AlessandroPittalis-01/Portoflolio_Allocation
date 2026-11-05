@@ -116,3 +116,23 @@ class TestAssetClassAndCore(unittest.TestCase):
         path.write_text("criteria: {}\nimplementable:\n  - id: x\n    asset_class: magic\n    category: c\n")
         with self.assertRaises(ValueError):
             load_universe(path)
+
+
+class TestScope(unittest.TestCase):
+    def test_equity_scopes_are_declared_for_core_equity_etfs(self):
+        _, assets = load_universe(DEFAULT_UNIVERSE_PATH)
+        by_id = {a.id: a for a in assets}
+        for a in assets:
+            if a.core and a.asset_class == "equity":
+                self.assertIn(a.scope, ("broad", "regional"), a.id)
+        self.assertEqual(by_id["allworld_vanguard"].scope, "broad")
+        self.assertEqual(by_id["world_xtrackers"].scope, "broad")
+        self.assertEqual(by_id["em_equity"].scope, "regional")
+
+    def test_unknown_scope_is_rejected(self):
+        import tempfile
+        from pathlib import Path
+        path = Path(tempfile.mkdtemp()) / "u.yaml"
+        path.write_text("criteria: {}\nimplementable:\n  - id: x\n    name: x\n    risk_driver: r\n    scope: huge\n    category: c\n")
+        with self.assertRaises(ValueError):
+            load_universe(path)

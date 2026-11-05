@@ -10,8 +10,11 @@ Rules, in order
 3. Inside each risky class, similarity is measured by correlation of the daily returns on the class's common
    window. ETFs with correlation >= ``rho_max`` are the SAME exposure: they are grouped (average-linkage
    clustering) and only the most central one (medoid: highest average correlation with its group) can enter.
-4. The first ETF of a class is the most REPRESENTATIVE one: the medoid with the highest average correlation with
-   all the other eligible ETFs of the class. Then, one by one, the group whose medoid has the LOWEST maximum
+4. The first ETF of a class (its core holding) is the one with the BROADEST scope (``broad`` before ``regional``,
+   an equity-only field of the universe file), then the most REPRESENTATIVE one: the medoid with the highest average
+   correlation with all the other eligible ETFs of the class. Scope comes first because with only two ETFs in a
+   class representativeness is symmetric (a tie) and would be decided by the id: in the first real backtest this made
+   an emerging-markets ETF the core of the equity class for years. Then, one by one, the group whose medoid has the LOWEST maximum
    correlation with the ETFs already chosen (maximin diversification). A class keeps at most ``max_etfs`` ETFs.
    The order matters: the first ETF is the class's core holding (it keeps the larger share of the class budget,
    see ``secondary_share`` in config/portfolio.yaml).
@@ -81,7 +84,16 @@ def _trim_to_overlap(returns: pd.DataFrame, ids: list[str], meta: pd.DataFrame, 
         dropped.append(worst)
 
 
-def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int, incumbents: list[str] | None = None):
+def _core_reason(a: str, rep: dict[str, float], scope_rank: dict[str, int] | None, ids: list[str]) -> str:
+    broad = [x for x in ids if (scope_rank or {}).get(x, 1) == 0]
+    base = f"average corr with the others {rep[a]:.2f}"
+    if scope_rank and a in broad and len(broad) < len(ids):
+        return f"core: broadest scope of the class, then most representative ({base})"
+    return f"most representative of the class ({base})"
+
+
+def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int, incumbents: list[str] | None = None,
+                scope_rank: dict[str, int] | None = None):
     """Cluster, take medoids, order them. Returns (chosen ids in order, {id: reason})."""
     ids = list(corr.index)
     reasons: dict[str, str] = {}
@@ -113,17 +125,19 @@ def _pick_class(corr: pd.DataFrame, rules: ChoiceRules, limit: int, incumbents: 
     rep = {a: float(corr.loc[a].drop(a).mean()) for a in ids}          # average correlation with the whole class
     remaining = dict(groups)
     chosen: list[str] = []
-    ranked = sorted(remaining, key=lambda g: (-rep[medoid[g]], medoid[g]))
+    sr = lambda a: (scope_rank or {}).get(a, 1)         # noqa: E731  broad 0, unknown 1, regional 2
+    ranked = sorted(remaining, key=lambda g: (sr(medoid[g]), -rep[medoid[g]], medoid[g]))
     first = ranked[0]
     core = inc[0] if inc else None                      # the previous core ETF of the class
     if core is not None:
         g_core = next((g for g, members in groups.items() if core in members), None)
-        if g_core is not None and rep[medoid[g_core]] >= rep[medoid[first]] - margin:
+        if (g_core is not None and sr(medoid[g_core]) <= sr(medoid[first])
+                and rep[medoid[g_core]] >= rep[medoid[first]] - margin):
             first = g_core
     chosen.append(medoid[first])
     kept = medoid[first] in inc and medoid[first] != medoid[ranked[0]]
     reasons[medoid[first]] = (f"incumbent core kept: {medoid[ranked[0]]} is better by less than {margin:.2f}" if kept
-                              else f"most representative of the class (average corr with the others {rep[medoid[first]]:.2f})")
+                              else _core_reason(medoid[first], rep, scope_rank, ids))
     del remaining[first]
     while remaining and len(chosen) < limit:
         score = {g: float(corr.loc[medoid[g], chosen].abs().max()) for g in remaining}
@@ -159,6 +173,8 @@ def choose_etfs(returns: pd.DataFrame, pln_returns: pd.DataFrame, meta: pd.DataF
     reason = why.copy()
     order = pd.Series(0, index=meta.index)
 
+    scope_rank = {a: {"broad": 0, "regional": 2}.get(str(meta.loc[a].get("scope")), 1) for a in meta.index} \
+        if "scope" in meta.columns else None
     avail = {a for a in meta.index if a in returns.columns}
     for a in meta.index:
         if why[a] == "" and a not in avail:
@@ -188,7 +204,7 @@ def choose_etfs(returns: pd.DataFrame, pln_returns: pd.DataFrame, meta: pd.DataF
                 reason[a] = f"common window of the class has only {len(window)} days"
             continue
         corr = window.corr()
-        chosen, reasons = _pick_class(corr, rules, rules.limit(cls), incumbents)
+        chosen, reasons = _pick_class(corr, rules, rules.limit(cls), incumbents, scope_rank)
         for a, text in reasons.items():
             reason[a] = text
         for i, a in enumerate(chosen, start=1):

@@ -164,5 +164,36 @@ class TestStability(unittest.TestCase):
         self.assertEqual(sorted(self.pick(c, ["gone"])), ["A", "B"])
 
 
+class TestScope(unittest.TestCase):
+    RULES = ChoiceRules(0.90, {"equity": 2}, 300, 5, "EUR", 0.10)
+
+    def test_with_two_etfs_the_broad_one_is_the_core_not_the_first_id(self):
+        c = corr_matrix(["a_em", "world"], {("a_em", "world"): 0.8})
+        self.assertEqual(_pick_class(c, self.RULES, 2)[0], ["a_em", "world"])                       # tie: decided by the id
+        chosen, why = _pick_class(c, self.RULES, 2, None, {"a_em": 2, "world": 0})
+        self.assertEqual(chosen, ["world", "a_em"])
+        self.assertIn("broadest scope", why["world"])
+
+    def test_a_regional_incumbent_does_not_stay_core_when_a_broad_etf_is_eligible(self):
+        c = corr_matrix(["a_em", "world"], {("a_em", "world"): 0.8})
+        chosen, _ = _pick_class(c, self.RULES, 2, ["a_em"], {"a_em": 2, "world": 0})
+        self.assertEqual(chosen[0], "world")
+
+    def test_without_a_broad_etf_the_most_representative_still_leads(self):
+        c = corr_matrix(["A", "B", "C"], {("A", "B"): 0.80, ("A", "C"): 0.50, ("B", "C"): 0.55})
+        chosen, _ = _pick_class(c, self.RULES, 2, None, {"A": 2, "B": 2, "C": 2})
+        self.assertEqual(chosen[0], "B")
+
+    def test_choose_etfs_reads_the_scope_column(self):
+        r, meta = make()
+        meta = meta.copy()
+        meta["scope"] = None
+        meta.loc[["world_a", "world_b", "world_c"], "scope"] = "broad"
+        meta.loc["europe", "scope"] = "regional"
+        d = choose_etfs(r, r, meta, RULES).set_index("asset_id")
+        self.assertEqual(d.loc["world_a", "order"], 1)
+        self.assertEqual(d.loc["europe", "order"], 2)
+
+
 if __name__ == "__main__":
     unittest.main()

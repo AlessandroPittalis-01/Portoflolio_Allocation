@@ -114,6 +114,7 @@ def build_meta(selection: pd.DataFrame, assets) -> pd.DataFrame:
     meta = selection.set_index("asset_id").copy()
     meta["asset_class"] = {a.id: a.asset_class for a in assets}
     meta["core"] = {a.id: a.core for a in assets}
+    meta["scope"] = {a.id: a.scope for a in assets}
     meta = meta[meta["asset_class"].notna()].copy()
     meta["core"] = meta["core"].astype(bool)
     meta["selected"] = meta["selected"].astype(bool)

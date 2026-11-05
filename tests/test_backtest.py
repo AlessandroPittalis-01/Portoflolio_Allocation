@@ -153,8 +153,11 @@ def make_world(years=8, seed=0, young_from="2017-01-01"):
 CLASSES = {"eq_old": "equity", "eq_young": "equity", "eq_em": "equity", "bd1": "bond", "bd2": "bond", "gld": "real", "cash": "cash"}
 
 
+SCOPES = {"eq_old": "broad", "eq_young": "broad", "eq_em": "regional"}
+
+
 def make_meta():
-    return pd.DataFrame({"asset_class": pd.Series(CLASSES), "core": True, "selected": True, "currency": "EUR",
+    return pd.DataFrame({"asset_class": pd.Series(CLASSES), "scope": pd.Series(SCOPES), "core": True, "selected": True, "currency": "EUR",
                          "history_years": 9.0, "excluded_because": "", "category": pd.Series({k: f"c_{k}" for k in CLASSES})})
 
 
@@ -235,6 +238,12 @@ class TestWalkForward(unittest.TestCase):
         wf = walk_forward(self.pln, self.local, self.meta, spec, self.profile, "ledoit_wolf", self.bt)
         self.assertLess(min(wf.schedules[BENCHMARK_LONG]), min(wf.schedules[BENCHMARK]))
         self.assertTrue(all(abs(w["eq_old"] - 0.6) < 1e-12 for w in wf.schedules[BENCHMARK_LONG].values()))
+
+    def test_the_regional_equity_etf_is_never_the_core(self):
+        wf = self.run_wf()
+        for d, row in wf.choices.iterrows():
+            equity = [a for a in row["risky"].split() if a.startswith("eq_")]       # listed in order of choice
+            self.assertNotEqual(equity[0], "eq_em", str(d.date()))
 
     def test_stability_rule_reduces_changes_of_the_chosen_set(self):
         def changes(margin):

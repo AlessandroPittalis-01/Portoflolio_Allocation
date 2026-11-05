@@ -38,6 +38,7 @@ class Asset:
     accumulating: bool | None = None  # True = reinvests income (Acc), False = pays it out (Dist), None = unknown
     ter_pct: float | None = None      # annual cost in percent (0.20 = 0.20%); None = not verified yet
     asset_class: str | None = None    # equity, bond, real or cash: the class that has a risk budget (IPS decision 28)
+    scope: str | None = None          # equity only: 'broad' (world / developed / all-country) or 'regional'; the core ETF of a class is the broadest
     core: bool = False                # True = may enter the portfolio: broad index, EUR-based (policy, see core_note in the YAML)
 
 
@@ -58,6 +59,17 @@ def _class_or_none(value, asset_id: str) -> str | None:
         return None
     if value not in ASSET_CLASSES:
         raise ValueError(f"asset '{asset_id}': asset_class must be one of {ASSET_CLASSES}, got '{value}'")
+    return str(value)
+
+
+SCOPES = ("broad", "regional")
+
+
+def _scope_or_none(value, asset_id: str) -> str | None:
+    if value is None:
+        return None
+    if value not in SCOPES:
+        raise ValueError(f"asset '{asset_id}': scope must be one of {SCOPES}, got '{value}'")
     return str(value)
 
 
@@ -125,6 +137,7 @@ def load_universe(path: Path | str = DEFAULT_UNIVERSE_PATH) -> tuple[dict, list[
                     accumulating=_bool_or_none(item.get("accumulating")),
                     ter_pct=_float_or_none(item.get("ter_pct")),
                     asset_class=_class_or_none(item.get("asset_class"), item["id"]),
+                    scope=_scope_or_none(item.get("scope"), item["id"]),
                     core=bool(_bool_or_none(item.get("core"))),
                 )
             )
