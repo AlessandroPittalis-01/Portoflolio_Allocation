@@ -47,7 +47,7 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | done |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | done |
 | 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | built, not yet run on real data |
-| 07 | `pipeline/07_simulation.py` | Monte Carlo with contributions | planned |
+| 07 | `pipeline/07_bootstrap.py` | stationary block bootstrap of the backtest returns: drawdown and under-water distribution, threshold probabilities, size of gaps between strategies | built, not yet run on real data |
 | 08 | `pipeline/08_report.py` | one report per investor profile | planned |
 
 Selection funnel: many candidates per category (stage 01) -> one ETF per category (stage 02) -> a small subset with weights (stage 05).
@@ -169,3 +169,12 @@ python pipeline/06_backtest.py --profile prudent --cost-bps 25
 ```
 
 At every month-end the choice of the ETFs, the covariance and the weights are recomputed with the data available up to that day; an ETF enters only after 504 days of history (no proxies). Monthly contributions buy the underweight ETFs; sales happen only outside the band or when an ETF leaves the portfolio; every trade pays `cost_bps` (`config/backtest.yaml`). The core ETF of a class is the broadest one (`scope` in the universe file); a held ETF keeps its place unless a challenger is clearly better (stability rule). It compares the allocation methods with two fixed 60/40 benchmarks (one with the all-world ETF, one with an older world ETF to cover the whole period) and writes `backtest_summary_full.csv`, `backtest_summary_common.csv`, `backtest_returns.csv`, `backtest_choices.csv`, `backtest_weights.csv`, `backtest_class_weights.csv`. It is a check of risk limits, costs and stability, not a promise of returns: no taxes, one history, no separate hold-out.
+
+### Stage 07 - block bootstrap of the backtest
+
+```bash
+python pipeline/06_backtest.py       # writes backtest_returns_full.csv
+python pipeline/07_bootstrap.py      # 2000 paths of 10 years, paired dates
+```
+
+Resamples blocks of days from the daily returns of stage 06 (same dates for every strategy) and reports the distribution of maximum drawdown, time under water and final money multiple, the probability of crossing the alert / review / stop drawdowns, and each strategy minus the reference on the same paths. It measures how much the outcome depends on the order of the days we have seen. It cannot create regimes that are not in the sample and it is not a forecast. Parameters: `config/bootstrap.yaml`.

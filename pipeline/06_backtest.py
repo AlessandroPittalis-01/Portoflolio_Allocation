@@ -5,6 +5,7 @@ Reads  : data/processed/returns_pln.csv, returns_local.csv (stage 03), selection
 Writes : data/processed/backtest_summary_full.csv     each strategy from its own first date
          data/processed/backtest_summary_common.csv   all strategies from the first date of the 60/40 benchmark
          data/processed/backtest_returns.csv          daily time-weighted return after costs (common period)
+         data/processed/backtest_returns_full.csv     the same, each strategy from its own first date (input of stage 07)
          data/processed/backtest_choices.csv          ETFs chosen at each month-end
          data/processed/backtest_weights.csv          target weights at each month-end, per method
 
@@ -102,13 +103,14 @@ def main(argv: list[str] | None = None) -> int:
     all_cols = list(pln.columns)
     strategies = [*bt.methods, *[b for b in (BENCHMARK, BENCHMARK_LONG) if wf.schedules.get(b)]]
 
-    full, common, daily = {}, {}, {}
+    full, common, daily, full_daily = {}, {}, {}, {}
     for name in strategies:
         sched = wf.schedules[name]
         if not sched:
             continue
         sim = simulate(pln[all_cols], sched, bt.monthly_contribution_pln, bt.cost_bps, band)
         full[name] = summarise(sim, profile)
+        full_daily[name] = sim.twr
         if wf.benchmark_start is not None:
             sub = {d: w for d, w in sched.items() if d >= wf.benchmark_start}
             if sub:
@@ -123,6 +125,7 @@ def main(argv: list[str] | None = None) -> int:
         common_df.index.name = "strategy"
         common_df.to_csv(processed / "backtest_summary_common.csv")
         pd.DataFrame(daily).to_csv(processed / "backtest_returns.csv", index_label="date")
+    pd.DataFrame(full_daily).sort_index().to_csv(processed / "backtest_returns_full.csv", index_label="date")
     wf.choices.to_csv(processed / "backtest_choices.csv")
     rows = []
     for method in bt.methods:

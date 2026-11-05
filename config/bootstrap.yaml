@@ -1,0 +1,14 @@
+# config/bootstrap.yaml  [PROPOSED - stage 07, IPS decision 33]
+#
+# Stationary block bootstrap of the realised strategy returns of stage 06. Declared BEFORE the first run.
+# It measures how much the risk outcomes depend on the order of the days we have seen; it creates no new regimes.
+
+bootstrap:
+  n_paths: 2000
+  mean_block_days: 21          # about one month: keeps short runs of bad days and volatility clustering
+  sensitivity_blocks: [10, 63] # robustness check with shorter and longer blocks (not to pick one)
+  horizon_years: 10            # the investment horizon of the IPS
+  contribution_every_days: 21  # one contribution per month
+  seed: 42
+  strategies: [risk_budget, equal_weight, benchmark_60_40_long]
+  reference: benchmark_60_40_long

@@ -294,7 +294,7 @@ class TestStage06(unittest.TestCase):
         code, out = self.run_stage()
         self.assertEqual(code, 0, out)
         for name in ("backtest_summary_full.csv", "backtest_summary_common.csv", "backtest_returns.csv",
-                     "backtest_choices.csv", "backtest_weights.csv", "backtest_class_weights.csv"):
+                     "backtest_choices.csv", "backtest_weights.csv", "backtest_class_weights.csv", "backtest_returns_full.csv"):
             self.assertTrue((self.processed / name).exists(), name)
         full = pd.read_csv(self.processed / "backtest_summary_full.csv", index_col="strategy")
         self.assertEqual(set(full.index), {"equal_weight", "risk_budget", "benchmark_60_40", "benchmark_60_40_long"})
