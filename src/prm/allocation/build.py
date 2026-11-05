@@ -118,7 +118,7 @@ def build_meta(selection: pd.DataFrame, assets) -> pd.DataFrame:
     meta = meta[meta["asset_class"].notna()].copy()
     meta["core"] = meta["core"].astype(bool)
     meta["selected"] = meta["selected"].astype(bool)
-    meta["excluded_because"] = meta["excluded_because"].fillna("")
+    meta["excluded_because"] = meta["excluded_because"].astype(object).where(meta["excluded_because"].notna(), "")
     return meta
 
 
