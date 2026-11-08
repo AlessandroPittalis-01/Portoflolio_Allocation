@@ -74,7 +74,7 @@ def main(argv: list[str] | None = None) -> int:
     _, assets = load_universe(args.universe)
     meta = build_meta(pd.read_csv(processed / "selection.csv"), assets)
 
-    rows = []
+    rows, window = [], None
     for name, ratios_by_class in cfg["scenarios"].items():
         ratios = hedge_ratios(meta, ratios_by_class, pln.columns)
         carries = cfg["carry_annual"] if ratios.max() > 0 else [0.0]      # no hedge: carry is irrelevant
@@ -86,6 +86,7 @@ def main(argv: list[str] | None = None) -> int:
                 print(f"[{name}, carry {carry:.0%}] allocation not possible: {exc}")
                 continue
             w = alloc.weights[METHOD]
+            window = window or (alloc.pln.index.min(), alloc.pln.index.max(), len(alloc.pln))
             port, port_loc = alloc.pln @ w, alloc.local @ w
             dd = max_drawdown(port)
             var95, es95 = hist_var_es(port, 0.95)
@@ -121,7 +122,7 @@ def main(argv: list[str] | None = None) -> int:
         show[c] = pct(show[c])
     show["carry_minus_cost_pa"] = (show["carry_minus_cost_pa"] * 100).round(2)
     print(f"\nFX HEDGE STUDY, profile '{args.profile}', method {METHOD}, target {profile.target_vol:.1%}; cost assumed "
-          f"{cfg['cost_annual']:.2%} a year. Window {pln.index.min().date()} -> {pln.index.max().date()}\n")
+          f"{cfg['cost_annual']:.2%} a year. Common window of the chosen ETFs: {window[0].date()} -> {window[1].date()} ({window[2]} days)\n")
     print("ETFs chosen per scenario:", "; ".join(sorted({f"{r.scenario}: {r.chosen}" for r in summary.itertuples()})))
     print("\nRESULT (%, in-sample; carry_assumed = ASSUMED PLN-EUR interest differential; carry_minus_cost_pa = assumed effect on the "
           "yearly return, NOT a forecast)\n")
