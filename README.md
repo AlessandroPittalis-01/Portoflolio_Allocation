@@ -8,6 +8,8 @@ Allocation is driven mainly by risk; forecasts are limited and can only tilt, no
 >
 > Methodological and educational project. Not financial advice.
 
+> The mathematics of every stage (formulas, assumptions, limits) is in `docs/METHODOLOGY.md`; the decisions and results are in `docs/IPS.md`.
+
 ## Goals
 
 - Build and monitor ETF portfolios from an explicit **Investment Policy Statement** ([docs/IPS.md](docs/IPS.md)), written before the code and updated step by step as results are observed.
