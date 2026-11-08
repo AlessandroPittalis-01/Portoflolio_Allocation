@@ -19,9 +19,10 @@
 9. VaR and ES models (stage 09)
 10. Backtesting of VaR and ES (stage 10)
 11. Risk factors and variance attribution (stage 11)
-12. Planned: stress tests and other risk metrics
-13. Where the methods are weak (summary)
-14. References
+12. Stress tests (stage 12)
+13. Planned: other risk metrics
+14. Where the methods are weak (summary)
+15. References
 
 ---
 
@@ -423,16 +424,62 @@ beta describes small moves and is **not** a stress test.
 
 ---
 
-## 12. Planned: stress tests and other risk metrics
+## 12. Stress tests (stage 12, `stress_tests.py`)
 
-To be written here when built (IPS decision 39, steps 4–5): historical and hypothetical stress scenarios applied to the
-factor sensitivities of §11 and to the asset returns; **reverse stress test** (smallest shock that brings the portfolio
-to the stop level $-25\%$, e.g. $\min\|\Delta f\|_{\Sigma_f^{-1}}$ s.t. $\beta^\top\Delta f=-0.25$); CDaR, Ulcer index,
-diversification ratio $\frac{\sum_iw_i\sigma_i}{\sigma_p}$, correlation in stress, marginal VaR/ES contributions.
+A stress test is a "what if", not a forecast and not a probability. All three tools below are **linear in the risk
+factors** of section 11: with $\beta$ the vector of betas and $\Delta f$ a vector of factor returns over an episode,
+
+$$\Delta P\approx\sum_i\beta_i\,\Delta f_i ,$$
+
+and the contribution of factor $i$ is $\beta_i\Delta f_i$. The part of the return not explained by the factors
+(residual, $1-R^2$) is ignored; convexity is ignored.
+
+**1. Historical episodes** (`config/scenarios.yaml`, windows chosen from well-known market events, not from our data).
+
+* *Direct:* the compound PLN return of each ETF from the close of the start date to the close of the end date,
+  $r_i=\prod_{t}(1+r_{i,t})-1$. An ETF with no return on or before the start (it did not exist) is **missing**, never
+  filled with a guess. The weighted return of the ETFs that existed is rescaled by their weight,
+  $\frac{\sum_{i\in\mathcal C}w_ir_i}{\sum_{i\in\mathcal C}w_i}$, and the **coverage** $\sum_{i\in\mathcal C}w_i$ is reported.
+* *Replayed:* the compound moves of the **factors** in the window (factors have a longer history than recent ETFs),
+  multiplied by today's betas. A factor with no data in the window counts as $0$ and is listed.
+
+**2. Hypothetical scenarios** (`config/stress_hypothetical.yaml`). Factor moves written **before** looking at results,
+with the order of magnitude of known episodes (2008, 2020, 2022); not calibrated, not probabilities. Sign of the FX
+factor: EUR/PLN return, so a **negative** move (the zloty strengthens) is a loss for a PLN investor holding EUR assets.
+
+**3. Reverse stress test.** Question: what is the most plausible combination of factor moves that brings the portfolio
+to a loss $L$ (the thresholds $-15\%$, $-20\%$, $-25\%$) over a horizon of $h$ days? Let $S_h=h\,\Sigma_f$ be the factor
+covariance for the horizon (daily covariance times $h$). Choose the shock $d$ that minimises its Mahalanobis length
+subject to hitting the loss:
+
+$$\min_d\ \tfrac12\,d^\top S_h^{-1}d\quad\text{s.t.}\quad\beta^\top d=-L .$$
+
+Lagrangian $\tfrac12d^\top S_h^{-1}d+\lambda(\beta^\top d+L)$: first-order condition $S_h^{-1}d+\lambda\beta=0$, so
+$d=-\lambda S_h\beta$; the constraint gives $\lambda=L/(\beta^\top S_h\beta)$. Hence
+
+$$d^\*=-L\,\frac{S_h\beta}{\beta^\top S_h\beta},\qquad
+\text{distance}=\sqrt{d^{\*\top}S_h^{-1}d^\*}=\frac{L}{\sqrt{\beta^\top S_h\beta}} .$$
+
+$\sqrt{\beta^\top S_h\beta}$ is the standard deviation of the factor-driven portfolio return over the horizon, so the
+distance is the loss measured in standard deviations. If $\Delta f\sim N(0,S_h)$, then $\beta^\top\Delta f\sim
+N(0,\beta^\top S_h\beta)$ and $P(\text{loss}\ge L)=\Phi(-\text{distance})$. The vector $d^\*$ shows which factors would
+typically drive such a loss (factors with large $\beta_i$ and large variance or correlated with them). Horizons: 21, 63
+and 252 days; the distance falls as $1/\sqrt h$.
+
+**Limits.** Linear (no convexity: e.g. bond convexity, option-like behaviour of credit); betas from one window; the
+residual is ignored; the probability assumes normality, so it is **optimistic** (fat tails); hypothetical sizes are
+assumptions. Replayed episodes assume today's betas held in the past.
 
 ---
 
-## 13. Where the methods are weak (summary)
+## 13. Planned: other risk metrics
+
+To be written here when built (IPS decision 39, step 5): CDaR (average drawdown in the worst $5\%$ of the time), Ulcer
+index, diversification ratio $\frac{\sum_iw_i\sigma_i}{\sigma_p}$, correlation in stress, marginal VaR/ES contributions.
+
+---
+
+## 14. Where the methods are weak (summary)
 
 * **One history.** Backtest, bootstrap and VaR backtest all use the same sample; no hold-out; one 2022, one COVID.
 * **Data.** Free data (yfinance), short histories for newer ETFs, known anomalies on some days.
@@ -442,7 +489,7 @@ diversification ratio $\frac{\sum_iw_i\sigma_i}{\sigma_p}$, correlation in stres
 * **Multiple testing.** Several models and several strategies are compared on the same data.
 * **Meaning of results.** Differences are judged by their size against bootstrap noise, never as a forecast of returns.
 
-## 14. References
+## 15. References
 
 * Politis, D., Romano, J. (1994). The stationary bootstrap. *JASA* 89.
 * Ledoit, O., Wolf, M. (2004). A well-conditioned estimator for large-dimensional covariance matrices. *JMVA* 88.

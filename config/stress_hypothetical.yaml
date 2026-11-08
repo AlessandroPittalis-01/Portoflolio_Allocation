@@ -1,0 +1,40 @@
+# config/stress_hypothetical.yaml - hypothetical stress scenarios for stage 12 (IPS decision 39, step 4).
+# Each scenario is a set of FACTOR RETURNS (decimals, over the whole episode), applied to the factor sensitivities
+# (betas) of stage 11. Factors not listed are 0. Names must exist in config/risk_factors.yaml.
+# [ASSUMPTION] Sizes are chosen BEFORE looking at results, from the order of magnitude of well-known episodes
+# (2008, 2020, 2022); they are not calibrated on our data and not probabilities. Change them -> new IPS version.
+# Sign of fx: EUR/PLN return; fx < 0 = the PLN strengthens = a LOSS for a PLN investor holding EUR assets.
+scenarios:
+  equity_crash:
+    description: "global equity crash with flight to quality: government bonds rally, credit widens, gold up, PLN weakens"
+    market: -0.30
+    rates: 0.03
+    credit: -0.04
+    gold: 0.05
+    fx: 0.08
+  stagflation:
+    description: "inflation and fast rate hikes (2022-like): equities AND government bonds fall, gold and inflation-linked hold"
+    market: -0.20
+    rates: -0.15
+    credit: -0.03
+    inflation: 0.04
+    gold: 0.10
+    fx: 0.05
+  rates_shock:
+    description: "sharp rise in euro yields with a mild equity sell-off"
+    market: -0.08
+    rates: -0.12
+    credit: -0.03
+    fx: 0.02
+  pln_appreciation:
+    description: "the zloty strengthens 12% against the euro, everything else unchanged"
+    fx: -0.12
+  gold_crash:
+    description: "gold falls 20%, everything else unchanged"
+    gold: -0.20
+  deflation_bust:
+    description: "growth scare with falling yields: equities down, bonds up, PLN strengthens (a loss for unhedged EUR assets)"
+    market: -0.25
+    rates: 0.08
+    credit: -0.05
+    fx: -0.05
