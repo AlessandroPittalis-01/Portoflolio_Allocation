@@ -54,10 +54,10 @@ profiles:
     tax_residence: PL
     monthly_contribution_eur_range: [500, 800]
     target_vol: 0.09          # [CALIBRATE] 8-10% in PLN (decision 24); check against stop_contributing_dd in stage 06
-    dd_alert: -0.10
-    dd_review: -0.18
+    dd_alert: -0.15           # [DECIDED] IPS decision 37, from the bootstrap grid (crossed in ~57% of 10-year paths)
+    dd_review: -0.20          # [DECIDED] IPS decision 37 (crossed in ~20% of paths)
     max_weight_per_etf: 0.40
     equity_cap: 0.50
     rebalance_band_pp: 0.05
-    stop_contributing_dd: -0.25   # [DECIDED] stated by owner
+    stop_contributing_dd: -0.25   # [DECIDED] stated by owner; kept although P(reach in 10y) = 6.8% > 5% criterion (decision 37)
     # Open: the owner's real tolerance may be tighter than -25%. To be refined.
