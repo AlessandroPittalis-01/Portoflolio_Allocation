@@ -1,0 +1,12 @@
+# config/risk_factors.yaml - risk factors for the sensitivity analysis (stage 11, IPS decision 39 step 3).
+# Each factor is built from ETFs already in the project (no extra data). "a - b" = long a, short b (a spread).
+# LOCAL (EUR) returns are used for every factor except fx, which is the EUR/PLN move taken from the stage-03 split.
+# [ASSUMPTION] These are PROXIES, not pure factors: ETF baskets contain several exposures.
+factors:
+  market:     world_xtrackers                              # global equity beta
+  rates:      eur_govt_bond                                # euro government bonds ~ duration (interest-rate level)
+  credit:     eur_corp_bonds - eur_govt_bond               # credit spread
+  inflation:  eur_inflation_linked - eur_govt_bond         # inflation-linked vs nominal = breakeven inflation
+  gold:       gold                                         # gold (a EUR-quoted ETF, includes USD/EUR)
+  fx:         EURPLN                                       # special name: PLN per EUR, from the stage-03 split
+fx_reference_asset: eur_govt_bond                          # an EUR-quoted ETF whose FX component is EUR/PLN

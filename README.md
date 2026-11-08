@@ -47,11 +47,12 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | done |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | done |
 | 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | built, not yet run on real data |
+| 11 | `pipeline/11_risk_factors.py` | risk-factor sensitivities (the 'Greeks' of a linear portfolio): betas to equity, rates, credit, inflation, gold, EUR/PLN, variance attribution, rolling betas | built, not yet run on real data |
 | 10 | `pipeline/10_var_backtest.py` | backtest of the VaR/ES models: Kupiec, Christoffersen, traffic light, ES checks, tick loss | built, not yet run on real data |
 | 09 | `pipeline/09_market_risk.py` | VaR / ES of the allocated portfolio: historical, EWMA, GARCH, filtered historical simulation, Monte Carlo normal and Student-t | built, not yet run on real data |
 | 08 | `pipeline/08_fx_hedge.py` | EUR/PLN hedge study: hedge ratio by class, assumed carry and cost, same allocation solved again; FX share, volatility, drawdown, ES | built, not yet run on real data |
 | 07 | `pipeline/07_bootstrap.py` | stationary block bootstrap of the backtest returns: drawdown and under-water distribution, threshold probabilities, size of gaps between strategies | built, not yet run on real data |
-| 11 | `pipeline/11_report.py` | one report per investor profile | planned |
+| 12 | `pipeline/12_report.py` | one report per investor profile | planned |
 
 Selection funnel: many candidates per category (stage 01) -> one ETF per category (stage 02) -> a small subset with weights (stage 05).
 
@@ -207,3 +208,11 @@ python pipeline/10_var_backtest.py --source weights  # fixed stage-05 weights on
 ```
 
 Forecasts use only past data. 'ok' = not rejected at 5%, never proof. At 99% the power is low.
+
+### Stage 11 - risk-factor sensitivities
+
+```bash
+python pipeline/11_risk_factors.py     # factors in config/risk_factors.yaml
+```
+
+ETFs are linear: no gamma or vega. The equivalent of delta is the beta of the portfolio to a few factors built from ETFs. Shares of variance add up to 100% with a residual.
