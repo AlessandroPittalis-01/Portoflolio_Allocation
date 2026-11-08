@@ -65,7 +65,7 @@ def build_factors(local: pd.DataFrame, pln: pd.DataFrame, factors: dict[str, str
 
 def ols(y: pd.Series, x: pd.DataFrame) -> dict:
     """OLS with intercept. Returns betas (Series), t-stats (classic), r2 and the residual series."""
-    df = pd.concat([y.rename("y"), x], axis=1).dropna()
+    df = pd.concat([y.rename("y"), x], axis=1, sort=True).dropna()
     if len(df) < 5 * (x.shape[1] + 1):
         raise ValueError("too few observations for this number of factors")
     X = np.column_stack([np.ones(len(df)), df[x.columns].to_numpy()])
@@ -106,7 +106,7 @@ def sensitivities(y: pd.Series, x: pd.DataFrame) -> pd.DataFrame:
 
 def rolling_beta(y: pd.Series, x: pd.DataFrame, window: int = 504, step: int = 63) -> pd.DataFrame:
     """Betas re-estimated on windows of ``window`` days every ``step`` days (a stability check: do they move?)."""
-    df = pd.concat([y.rename("y"), x], axis=1).dropna()
+    df = pd.concat([y.rename("y"), x], axis=1, sort=True).dropna()
     rows = {}
     for end in range(window, len(df) + 1, step):
         w = df.iloc[end - window:end]

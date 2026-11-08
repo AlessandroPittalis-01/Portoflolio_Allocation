@@ -64,7 +64,7 @@ def main(argv: list[str] | None = None) -> int:
         print(f"Factor setup problem: {exc}")
         return 1
     port = pln[list(w.index)].dropna() @ w
-    data = pd.concat([port.rename("port"), factors], axis=1).dropna()
+    data = pd.concat([port.rename("port"), factors], axis=1, sort=True).dropna()
     if len(data) < 600:
         print(f"Common window too short ({len(data)} days).")
         return 1

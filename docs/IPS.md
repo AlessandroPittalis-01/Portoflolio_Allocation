@@ -485,6 +485,9 @@ Volatility 8.7% average, 8.0% (EWMA) / 8.6% (GARCH) today, GARCH persistence 0.9
 ### 2026-11-08 — Stage 10 (VaR backtest) first real run: `risk_budget` walk-forward, 2016-06-30 to 2026-11-04, 2154 forecast days `[OBSERVED]`
 95%: all six models pass Kupiec (rate 4.3-5.4%), but independence is rejected for five of six (exceptions in clusters); only `fhs_garch` is not rejected (p 0.067). `gaussian` has ES ratio 1.25 (tail understated). 99% (21.5 exceptions expected): `gaussian` 32 exceptions, Kupiec p 0.035, yellow, ES ratio 1.43; `historical` 28, independence rejected (p 0.000: a 500-day memory is slow); `gaussian_ewma` 30 and `gaussian_garch` 29 pass but yellow, ES ratio 1.19-1.22; `fhs_ewma` 24 exceptions (1.11%), green, conditional coverage p 0.665, ES ratio 1.00; `fhs_garch` 29, yellow, ES ratio 1.03, lowest tick loss together with `gaussian_garch`. Reading: models with today's volatility are needed (clusters), and an empirical tail shape is needed for ES; fixed-volatility models are not adequate. Differences among the three conditional models are small and within sampling noise (about 21 expected exceptions, 6 models tested).
 
+### 2026-11-08 — Stage 11 (risk factors) first real run: `risk_budget` weights, window 2021-07-19 to 2026-11-02, 1349 days `[OBSERVED]`
+R-squared 0.97 (residual 3.2%). Beta and share of variance: EUR/PLN 0.96 and 35.4% (largest single source of risk), equity market 0.36 and 33.2%, rates 0.48 and 16.6%, gold 0.15 and 11.8%, credit 0.04 and -0.4%, inflation 0.04 and 0.1%. One-sigma monthly moves: EUR/PLN 1.6%, market 1.4%, rates 0.9%, gold 0.7%. Rolling betas over 14 windows of 504 days are stable (market 0.33-0.36, rates 0.46-0.53, EUR/PLN 0.92-0.99). The currency explains as much risk as the equity market and exceeds the 30% limit of the FX share (35% here, 33-36% in stages 04, 05, 08): consistent with the hedge study, where hedging the bonds cut the FX share to 10%. Credit and inflation exposures are negligible with these ETFs.
+
 ## 10. Changelog
 
 - v0.1 — first draft from design conversation.
@@ -510,6 +513,7 @@ Volatility 8.7% average, 8.0% (EWMA) / 8.6% (GARCH) today, GARCH persistence 0.9
 - v0.19 — decision 35 (core ETF = broadest scope, then most representative; `scope` field); second real run of stage 06 logged.
 - v0.20 — stage 07 (stationary block bootstrap) built, decision 33 decided; third real run of stage 06 logged.
 - v0.21 — stage 07 first real run logged; threshold grid added to stage 07.
+- v0.30 — stage 11 first real run logged; Pandas warning fixed in stage 11.
 - v0.29 — decisions 40 (reference VaR model fhs_ewma, challenger fhs_garch) and 41 (documentation standard); `docs/METHODOLOGY.md` written for stages 01-11.
 - v0.28 — stage 11 (risk-factor sensitivities: market, rates, credit, inflation, gold, EUR/PLN; variance attribution; rolling betas), stage 10 first run logged.
 - v0.27 — stage 10 (VaR/ES backtesting: Kupiec, Christoffersen, conditional coverage, traffic light, ES checks, tick loss); stage 09 first run logged.
