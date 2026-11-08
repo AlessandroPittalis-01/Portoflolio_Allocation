@@ -1,0 +1,19 @@
+# config/fx_hedge.yaml - assumptions of the FX-hedge study (stage 08, IPS decision 38).
+# All values are [ASSUMPTION], not market data: change them and read the sensitivity, never one number.
+#
+# Model (per EUR-quoted asset, daily, hedge notional rebalanced to the position value):
+#   hedged PLN return = (1 + local) * (1 + (1 - h) * fx + h * net_carry) - 1
+#   fx          EUR/PLN return of that day (from stage 03: (1+pln)/(1+local) - 1)
+#   h           hedge ratio of the asset's class (0 = unhedged, 1 = fully hedged)
+#   net_carry   (PLN rate - EUR rate - hedge cost) / 252: a PLN investor who SELLS EUR forward earns
+#               the forward points, about the interest differential (UIP says unhedged FX loses it on average).
+carry_annual: [0.0, 0.02, 0.04]   # assumed PLN-EUR interest differential, per year (sensitivity grid)
+cost_annual: 0.003                # assumed all-in hedge cost per year (spread, roll, financing margin)
+
+# Hedge ratio by asset class. Cash-like ETF stays unhedged (hedged EUR cash = a PLN deposit: a different asset).
+# Gold: a EUR-quoted gold ETF holds USD gold; hedging EUR/PLN does not remove its dollar risk (stage 04).
+scenarios:
+  none:            {equity: 0.0, bond: 0.0, real: 0.0}
+  bonds_full:      {equity: 0.0, bond: 1.0, real: 0.0}
+  bonds_eq_half:   {equity: 0.5, bond: 1.0, real: 0.0}
+  all_full:        {equity: 1.0, bond: 1.0, real: 1.0}

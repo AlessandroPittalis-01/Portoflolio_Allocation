@@ -47,6 +47,7 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | done |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | done |
 | 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | built, not yet run on real data |
+| 08 | `pipeline/08_fx_hedge.py` | EUR/PLN hedge study: hedge ratio by class, assumed carry and cost, same allocation solved again; FX share, volatility, drawdown, ES | built, not yet run on real data |
 | 07 | `pipeline/07_bootstrap.py` | stationary block bootstrap of the backtest returns: drawdown and under-water distribution, threshold probabilities, size of gaps between strategies | built, not yet run on real data |
 | 08 | `pipeline/08_report.py` | one report per investor profile | planned |
 
@@ -179,3 +180,11 @@ python pipeline/07_bootstrap.py      # 2000 paths of 10 years, paired dates
 ```
 
 Resamples blocks of days from the daily returns of stage 06 (same dates for every strategy) and reports the distribution of maximum drawdown, time under water and final money multiple, the probability of crossing the alert / review / stop drawdowns, and each strategy minus the reference on the same paths. It measures how much the outcome depends on the order of the days we have seen. It cannot create regimes that are not in the sample and it is not a forecast. Parameters: `config/bootstrap.yaml`.
+
+### Stage 08 - EUR/PLN hedge study
+
+```bash
+python pipeline/08_fx_hedge.py       # scenarios and assumed carry/cost in config/fx_hedge.yaml
+```
+
+A model with ASSUMED carry and cost, not a real instrument. It answers: how much risk would a hedge remove, and can it deepen drawdowns?
