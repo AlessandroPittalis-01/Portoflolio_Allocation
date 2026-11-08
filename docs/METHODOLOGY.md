@@ -21,8 +21,10 @@
 11. Risk factors and variance attribution (stage 11)
 12. Stress tests (stage 12)
 13. Further risk metrics (stage 13)
-14. Where the methods are weak (summary)
-15. References
+14. Risk limits and monitoring report (stage 14)
+15. Robustness variants (stage 15)
+16. Where the methods are weak (summary)
+17. References
 
 ---
 
@@ -528,7 +530,66 @@ not how large it will be in the next crisis; the market factor is an ETF proxy.
 
 ---
 
-## 14. Where the methods are weak (summary)
+## 14. Risk limits and monitoring report (stage 14, `limits.py`, `monitor.py`)
+
+A **limit** is a rule on a number that an earlier stage already computes. The report only compares; it never trades.
+
+**Status of a value $x$** against an optional lower bound $L$, upper bound $U$ and margin $m \ge 0$:
+
+$$
+\text{status}(x)=\begin{cases}
+\text{RED} & x<L \ \text{ or } \ x>U\\
+\text{AMBER} & L\le x\le U \ \text{ and } \ (x-L<m \ \text{ or } \ U-x<m)\\
+\text{GREEN} & \text{otherwise}
+\end{cases}
+$$
+
+A missing value gives N/A (the stage that produces it has not been run). The overall status is the worst of the rows
+(RED > AMBER > GREEN; N/A ignored).
+
+**Drawdown** uses the three profile levels $a>r>s$ (alert, review, stop, all negative). With $D_t = W_t/\max_{u\le t}W_u-1$
+and $W_t=\prod_{u\le t}(1+r_u)$ the time-weighted wealth: GREEN if $D_t>a$; AMBER if $r<D_t\le a$; RED if $D_t\le r$.
+Below $s$ the text of the IPS applies (stop contributions and review).
+
+**Checks computed** (values come from the stage in brackets):
+
+| Check | Value | Limit | Origin |
+|---|---|---|---|
+| Model volatility (05) | $\sqrt{w'\Sigma w}$ | 8% to 10% | decided |
+| FX share of variance (05) | $\mathrm{Cov}(r_{pln},fx)/\mathrm{Var}(r_{pln})$ | $\le 30\%$ | decided |
+| Equity weight, largest weight (05) | sum / max of weights | profile caps | profile |
+| 1-day VaR 99%, `fhs_ewma` (09) | historical quantile of standardised residuals $\times$ current $\sigma$ | $\le 1.5\%$ | proposed |
+| Basel zone of `fhs_ewma` at 99% (10) | traffic light | green | proposed |
+| Worst hypothetical scenario (12) | $\min_s \beta'\,\text{shock}_s$ | $\ge$ stop level | proposed |
+| Class risk-share gap (05) | $\max_c \lvert \hat s_c - b_c\rvert$, shares on the risky part, cash excluded and rescaled | $\le 10$ points | proposed |
+| Current drawdown (06) | $D_T$ of the backtest series | alert / review / stop | profile |
+
+The 1.5% VaR limit is the Gaussian 99% VaR of a portfolio at the upper volatility bound, $2.33\times 10\%/\sqrt{252}=1.47\%$,
+rounded. It is a proposal, not an owner decision (IPS decision 42).
+
+**Limits of the report.** The drawdown rows use the backtest series, not the real account, whose returns are not in the data.
+Values are point estimates, with no confidence interval; AMBER margins are conventions, not statistics.
+
+## 15. Robustness variants (stage 15, `robustness.py`)
+
+The walk-forward of stage 06 is repeated with **one** assumption changed at a time. The seven variants are fixed
+in advance (IPS decision 43): base; cost 5 and 25 bps (base 10); switch margin 0.05 and 0.15 (base 0.10); equity
+secondary share 0.10 and 0.30 (base 0.20). Everything else is identical, including the data.
+
+For each variant $v$ and strategy $i$ the same summary as stage 06 is computed (annual TWR, volatility, maximum drawdown,
+longest time under water, turnover, costs, final value). Two quantities describe the sensitivity:
+
+$$
+\text{spread}_i(m)=\max_v m_{i,v}-\min_v m_{i,v},
+\qquad
+\text{gap}_v = \mathrm{MaxDD}_{\text{risk\_budget},v}-\mathrm{MaxDD}_{\text{benchmark},v}.
+$$
+
+How to read it: if the spread of volatility and drawdown is small and $\text{gap}_v$ keeps its sign in all variants, the
+conclusion does not depend on the assumption. A large spread means the base result was fragile. **The best variant is
+never selected**: that would be data snooping. With one history the checks test the assumptions, not the future.
+
+## 16. Where the methods are weak (summary)
 
 * **One history.** Backtest, bootstrap and VaR backtest all use the same sample; no hold-out; one 2022, one COVID.
 * **Data.** Free data (yfinance), short histories for newer ETFs, known anomalies on some days.
@@ -538,7 +599,7 @@ not how large it will be in the next crisis; the market factor is an ETF proxy.
 * **Multiple testing.** Several models and several strategies are compared on the same data.
 * **Meaning of results.** Differences are judged by their size against bootstrap noise, never as a forecast of returns.
 
-## 15. References
+## 17. References
 
 * Politis, D., Romano, J. (1994). The stationary bootstrap. *JASA* 89.
 * Ledoit, O., Wolf, M. (2004). A well-conditioned estimator for large-dimensional covariance matrices. *JMVA* 88.

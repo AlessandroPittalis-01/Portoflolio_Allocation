@@ -316,14 +316,14 @@ research_only:
   - id: europe_rafi
     asset_class: equity
     scope: regional   # broad = whole (developed or all-country) world market; regional = one region or country
-    core: false   # no symbol, no data
-    accumulating: true
+    core: false   # EXCLUDED (IPS decision 44): the only UCITS ETF found is DISTRIBUTING, the IPS requires accumulating; no data requested
+    accumulating: false
     category: europe_fundamental
-    name: Europe RAFI fundamental-weighted UCITS ETF (candidate not chosen yet)
+    name: Invesco RAFI Europe Fundamental Value UCITS ETF Dist (found 2026-11-08, not used)
     risk_driver: European equities, fundamental weighting
-    isin: verify
-    search: "RAFI Europe UCITS ETF"   # found nothing twice: it probably does not exist as a UCITS ETF on Yahoo. Check justETF, otherwise remove
-    yahoo_symbol: verify
+    isin: IE00B23D8X81   # justETF 2026-11-08: distributing (quarterly), TER 0.39%, size EUR 33 million, Xetra 6PSC, EUR
+    search: "RAFI Europe UCITS ETF"
+    yahoo_symbol: verify   # not needed while the ETF is excluded; a small fund (EUR 33m) with a distributing share class
   - id: eur_corp_bonds
     asset_class: bond
     core: true

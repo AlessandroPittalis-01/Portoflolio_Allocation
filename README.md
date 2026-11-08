@@ -56,7 +56,8 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 09 | `pipeline/09_market_risk.py` | VaR / ES of the allocated portfolio: historical, EWMA, GARCH, filtered historical simulation, Monte Carlo normal and Student-t | built, not yet run on real data |
 | 08 | `pipeline/08_fx_hedge.py` | EUR/PLN hedge study: hedge ratio by class, assumed carry and cost, same allocation solved again; FX share, volatility, drawdown, ES | built, not yet run on real data |
 | 07 | `pipeline/07_bootstrap.py` | stationary block bootstrap of the backtest returns: drawdown and under-water distribution, threshold probabilities, size of gaps between strategies | built, not yet run on real data |
-| 14 | `pipeline/14_report.py` | one report per investor profile | planned |
+| 14 | `pipeline/14_report.py` | monitoring report: numbers of the earlier stages against the risk limits (GREEN / AMBER / RED) | built, not yet run on real data |
+| 15 | `pipeline/15_robustness.py` | the walk-forward re-run with one assumption changed at a time (cost, switch margin, secondary share), 7 pre-declared variants | built, not yet run on real data |
 
 Selection funnel: many candidates per category (stage 01) -> one ETF per category (stage 02) -> a small subset with weights (stage 05).
 
@@ -236,3 +237,23 @@ python pipeline/13_risk_extras.py
 ```
 
 Drawdown-based measures, diversification, who carries the tail loss, and whether correlations rise in stress (corrected for selection).
+
+### Stage 14 - monitoring report
+```bash
+python pipeline/14_report.py
+```
+Writes `data/processed/report_owner.md`: model volatility, FX share, weights, VaR 99%, VaR model zone, worst stress scenario,
+drawdown, each against its limit (`config/limits.yaml` and `config/profiles.yaml`). Limits marked *proposed* wait for the owner.
+
+### Stage 15 - robustness of the backtest
+```bash
+python pipeline/15_robustness.py
+```
+Seven pre-declared variants, one change at a time. Slow (about 7 times stage 06). Do not pick the best variant.
+
+### Whole pipeline in order
+```bash
+bash run_all.sh              # everything, in order
+bash run_all.sh --skip-slow  # without stage 15
+```
+Instruments for hedging EUR/PLN: see `docs/FX_HEDGE_INSTRUMENTS.md` (research note, mostly unverified).
