@@ -49,13 +49,14 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 04 | `pipeline/04_risk_analysis.py` | volatility, drawdown, VaR/ES, correlations, risk contributions, covariance estimators | done |
 | 05 | `pipeline/05_allocation.py` | portfolio optimisation: chooses among the selected ETFs and sets the weights | done |
 | 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | built, not yet run on real data |
+| 13 | `pipeline/13_risk_extras.py` | DaR/CDaR, Ulcer index, diversification ratio, effective risk bets, component ES, correlation in stress | built, not yet run on real data |
 | 12 | `pipeline/12_stress.py` | stress tests: historical episodes (direct and replayed through factor betas), hypothetical scenarios, reverse stress test | built, not yet run on real data |
 | 11 | `pipeline/11_risk_factors.py` | risk-factor sensitivities (the 'Greeks' of a linear portfolio): betas to equity, rates, credit, inflation, gold, EUR/PLN, variance attribution, rolling betas | built, not yet run on real data |
 | 10 | `pipeline/10_var_backtest.py` | backtest of the VaR/ES models: Kupiec, Christoffersen, traffic light, ES checks, tick loss | built, not yet run on real data |
 | 09 | `pipeline/09_market_risk.py` | VaR / ES of the allocated portfolio: historical, EWMA, GARCH, filtered historical simulation, Monte Carlo normal and Student-t | built, not yet run on real data |
 | 08 | `pipeline/08_fx_hedge.py` | EUR/PLN hedge study: hedge ratio by class, assumed carry and cost, same allocation solved again; FX share, volatility, drawdown, ES | built, not yet run on real data |
 | 07 | `pipeline/07_bootstrap.py` | stationary block bootstrap of the backtest returns: drawdown and under-water distribution, threshold probabilities, size of gaps between strategies | built, not yet run on real data |
-| 13 | `pipeline/13_report.py` | one report per investor profile | planned |
+| 14 | `pipeline/14_report.py` | one report per investor profile | planned |
 
 Selection funnel: many candidates per category (stage 01) -> one ETF per category (stage 02) -> a small subset with weights (stage 05).
 
@@ -227,3 +228,11 @@ python pipeline/12_stress.py     # scenarios in config/scenarios.yaml and config
 ```
 
 Linear in the factors of stage 11. A stress is a what-if, not a forecast. Reverse stress: the most plausible factor shock that reaches -15%, -20% and -25%.
+
+### Stage 13 - further risk metrics
+
+```bash
+python pipeline/13_risk_extras.py
+```
+
+Drawdown-based measures, diversification, who carries the tail loss, and whether correlations rise in stress (corrected for selection).

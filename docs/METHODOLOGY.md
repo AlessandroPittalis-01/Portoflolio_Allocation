@@ -20,7 +20,7 @@
 10. Backtesting of VaR and ES (stage 10)
 11. Risk factors and variance attribution (stage 11)
 12. Stress tests (stage 12)
-13. Planned: other risk metrics
+13. Further risk metrics (stage 13)
 14. Where the methods are weak (summary)
 15. References
 
@@ -472,10 +472,59 @@ assumptions. Replayed episodes assume today's betas held in the past.
 
 ---
 
-## 13. Planned: other risk metrics
+## 13. Further risk metrics (stage 13, `extra_metrics.py`)
 
-To be written here when built (IPS decision 39, step 5): CDaR (average drawdown in the worst $5\%$ of the time), Ulcer
-index, diversification ratio $\frac{\sum_iw_i\sigma_i}{\sigma_p}$, correlation in stress, marginal VaR/ES contributions.
+Let $W_t$ be the wealth index of the fixed-weight portfolio and $d_t=1-W_t/\max_{u\le t}W_u\ge0$ the **drawdown depth**
+(positive number, $0$ at a new high).
+
+**DaR and CDaR** (Chekhlov, Uryasev, Zabarankin, 2005). The drawdown analogue of VaR and ES:
+
+$$\mathrm{DaR}_\alpha=q_\alpha(d),\qquad \mathrm{CDaR}_\alpha=\mathbb E\big[d_t\mid d_t\ge\mathrm{DaR}_\alpha\big],\quad\alpha=95\%,$$
+
+estimated as the quantile of the daily depths and the mean of the days at or beyond it. $\mathrm{DaR}$ is the depth exceeded
+$5\%$ of the time; $\mathrm{CDaR}$ the average depth in that worst $5\%$ of the time. Unlike VaR it looks at the path:
+how deep and for how long.
+
+**Ulcer index** (Martin and McCann, 1989). $\mathrm{UI}=\sqrt{\frac1T\sum_td_t^2}$: root-mean-square drawdown; squaring
+punishes deep drawdowns, averaging over time punishes long ones.
+
+**Diversification ratio** (Choueifaty and Coignard, 2008).
+
+$$\mathrm{DR}=\frac{\sum_iw_i\sigma_i}{\sigma_p}\ \ge 1\ \text{(long-only)},$$
+
+because $\sigma_p\le\sum_iw_i\sigma_i$ (the triangle inequality for the norm $\sqrt{w^\top\Sigma w}$); $\mathrm{DR}=1$ if and only
+if all assets are perfectly correlated. It is the ratio between the volatility the portfolio would have with no
+diversification and the one it has.
+
+**Effective number of risk bets.** With the Euler risk shares $p_i$ of §3 ($\sum p_i=1$):
+$\mathrm{ENB}=\exp\!\big(-\sum_ip_i\ln p_i\big)$. Equal shares over $N$ assets give $N$; one asset carrying all the risk gives
+$1$. It is an asset-level (entropy) version of Meucci's effective number of bets, which uses principal components.
+
+**Component ES (Euler allocation of the tail loss).** Let $\mathcal T=\{t:R_{p,t}\le q_{1-\alpha}(R_p)\}$ be the tail days of the
+portfolio. Since $R_{p,t}=\sum_iw_ir_{i,t}$ is linear,
+
+$$\mathrm{ES}=-\frac1{|\mathcal T|}\sum_{t\in\mathcal T}R_{p,t}=\sum_i\underbrace{\Big(-w_i\,\frac1{|\mathcal T|}\sum_{t\in\mathcal T}r_{i,t}\Big)}_{\mathrm{CES}_i},$$
+
+so the components add up **exactly** to the ES (Tasche, 2000: the contribution is $w_i\,\partial\mathrm{ES}/\partial w_i=-w_i\mathbb E[r_i\mid\text{tail}]$).
+Comparing $\mathrm{CES}_i/\mathrm{ES}$ with the volatility share $p_i$ shows who is riskier **in bad times** than its volatility says;
+a hedge has a negative component.
+
+**Correlation in stress, corrected for selection** (Forbes and Rigobon, 2002). Take the worst $10\%$ days of the equity
+market $x$ (the `market` factor) and an asset return $y$. Selecting days on $x$ truncates its variance and mechanically
+lowers the measured correlation, even if the relation has not changed. Assume $y=a+bx+e$ with constant slope $b$ and
+noise variance $\sigma_e^2$. Let $\rho_s$ be the correlation on the selected days, $k=\sigma_x^2/\sigma_{x,s}^2$ the ratio of
+the full-sample to the selected-sample variance of $x$. Then the full-sample correlation implied by the selected sample is
+
+$$\rho^\*=\frac{\rho_s}{\sqrt{1+\delta\,(1-\rho_s^2)}},\qquad\delta=\frac{\sigma_{x,s}^2}{\sigma_x^2}-1 .$$
+
+(Derivation: $\rho_s^2=\frac{b^2\sigma_{x,s}^2}{b^2\sigma_{x,s}^2+\sigma_e^2}$ and the same with $\sigma_x^2$ for the full sample; eliminating
+$b^2/\sigma_e^2$ gives $\rho^{\*2}=\frac{k\rho_s^2}{1-\rho_s^2+k\rho_s^2}$, which is the formula above.) If $\rho^\*$ is clearly **above** the
+all-days correlation $\rho$, the relation really strengthened in stress; if it is close to $\rho$, the lower raw value was only
+the selection effect.
+
+**Limits.** All historical and in-sample; the tail quantities rest on about $5\%$ of the days (few observations); the
+corrected correlation assumes that slope and noise do not change in stress, so it shows **whether** the relation changes,
+not how large it will be in the next crisis; the market factor is an ETF proxy.
 
 ---
 
@@ -501,4 +550,10 @@ index, diversification ratio $\frac{\sum_iw_i\sigma_i}{\sigma_p}$, correlation i
 * Kupiec, P. (1995). Techniques for verifying the accuracy of risk measurement models. *J. Derivatives* 3.
 * Christoffersen, P. (1998). Evaluating interval forecasts. *International Economic Review* 39.
 * McNeil, A., Frey, R. (2000). Estimation of tail-related risk measures for heteroscedastic financial time series. *J. Empirical Finance* 7.
+* Chekhlov, A., Uryasev, S., Zabarankin, M. (2005). Drawdown measure in portfolio optimization. *Int. J. Theoretical and Applied Finance* 8.
+* Martin, P., McCann, B. (1989). *The Investor's Guide to Fidelity Funds*. Wiley (Ulcer index).
+* Choueifaty, Y., Coignard, Y. (2008). Toward maximum diversification. *J. Portfolio Management* 35.
+* Meucci, A. (2009). Managing diversification. *Risk* 22.
+* Tasche, D. (2000). Risk contributions and performance measurement. Working paper.
+* Forbes, K., Rigobon, R. (2002). No contagion, only interdependence. *Journal of Finance* 57.
 * Basel Committee (1996). *Supervisory framework for the use of backtesting in conjunction with the internal models approach*.

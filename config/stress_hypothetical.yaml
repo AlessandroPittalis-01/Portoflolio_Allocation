@@ -38,3 +38,11 @@ scenarios:
     rates: 0.08
     credit: -0.05
     fx: -0.05
+  # Added AFTER the first real run (2026-11-08) as a SENSITIVITY, not as an ex-ante scenario: in equity_crash the assumed
+  # PLN weakening (+8%) offsets most of the equity loss. This variant shows the loss when the currency does not help.
+  equity_crash_fx_flat:
+    description: "same as equity_crash but EUR/PLN unchanged (post-hoc sensitivity: no help from the currency)"
+    market: -0.30
+    rates: 0.03
+    credit: -0.04
+    gold: 0.05
