@@ -49,7 +49,7 @@ The project is a numbered pipeline. Each stage reads the files written by the pr
 | 06 | `pipeline/06_backtest.py` | walk-forward backtest with monthly contributions, costs, TWR and IRR | built, not yet run on real data |
 | 08 | `pipeline/08_fx_hedge.py` | EUR/PLN hedge study: hedge ratio by class, assumed carry and cost, same allocation solved again; FX share, volatility, drawdown, ES | built, not yet run on real data |
 | 07 | `pipeline/07_bootstrap.py` | stationary block bootstrap of the backtest returns: drawdown and under-water distribution, threshold probabilities, size of gaps between strategies | built, not yet run on real data |
-| 08 | `pipeline/08_report.py` | one report per investor profile | planned |
+| 09 | `pipeline/09_report.py` | one report per investor profile | planned |
 
 Selection funnel: many candidates per category (stage 01) -> one ETF per category (stage 02) -> a small subset with weights (stage 05).
 
