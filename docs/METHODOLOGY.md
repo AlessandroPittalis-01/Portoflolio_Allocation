@@ -558,14 +558,16 @@ Below $s$ the text of the IPS applies (stop contributions and review).
 | Model volatility (05) | $\sqrt{w'\Sigma w}$ | 8% to 10% | decided |
 | FX share of variance (05) | $\mathrm{Cov}(r_{pln},fx)/\mathrm{Var}(r_{pln})$ | $\le 30\%$ | decided |
 | Equity weight, largest weight (05) | sum / max of weights | profile caps | profile |
-| 1-day VaR 99%, `fhs_ewma` (09) | historical quantile of standardised residuals $\times$ current $\sigma$ | $\le 1.5\%$ | proposed |
-| Basel zone of `fhs_ewma` at 99% (10) | traffic light | green | proposed |
-| Worst hypothetical scenario (12) | $\min_s \beta'\,\text{shock}_s$ | $\ge$ stop level | proposed |
-| Class risk-share gap (05) | $\max_c \lvert \hat s_c - b_c\rvert$, shares on the risky part, cash excluded and rescaled | $\le 10$ points | proposed |
+| 1-day VaR 99%, `fhs_ewma` (09) | historical quantile of standardised residuals $\times$ current $\sigma$ | $\le 1.5\%$ | decided (confirmed 2026-11-08) |
+| Basel zone of `fhs_ewma` at 99% (10) | traffic light | green | decided (confirmed 2026-11-08) |
+| Worst hypothetical scenario (12) | $\min_s \beta'\,\text{shock}_s$ | $\ge$ stop level | decided (confirmed 2026-11-08) |
+| Class risk-share gap (05) | $\max_c \lvert \hat s_c - b_c\rvert$, shares on the risky part, cash excluded and rescaled | $\le 10$ points | decided (confirmed 2026-11-08) |
 | Current drawdown (06) | $D_T$ of the backtest series | alert / review / stop | profile |
 
 The 1.5% VaR limit is the Gaussian 99% VaR of a portfolio at the upper volatility bound, $2.33\times 10\%/\sqrt{252}=1.47\%$,
-rounded. It is a proposal, not an owner decision (IPS decision 42).
+rounded. It was proposed by the code and confirmed by the owner (IPS decision 42).
+
+**Accepted exceptions.** A limit may carry the text of an exception the owner knowingly accepts (IPS decision 45 for the FX share). The status stays RED, so the breach is never hidden, and the report prints the text next to it.
 
 **Limits of the report.** The drawdown rows use the backtest series, not the real account, whose returns are not in the data.
 Values are point estimates, with no confidence interval; AMBER margins are conventions, not statistics.

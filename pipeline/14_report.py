@@ -79,7 +79,8 @@ def main(argv: list[str] | None = None) -> int:
 
     checks = build_checks(limits, profile, summary_row=row, weights=weights, class_gap=gap, var_table=var_table,
                           var_backtest=var_bt, hypothetical=hyp, twr=twr)
-    md = render_markdown(checks, profile, args.method, as_of)
+    accepted = {k: v.accepted_exception for k, v in limits.items() if v.accepted_exception}
+    md = render_markdown(checks, profile, args.method, as_of, accepted)
     (processed / f"report_{args.profile}.md").write_text(md, encoding="utf-8")
     checks.to_csv(processed / f"report_{args.profile}.csv", index=False)
     print("\n" + md)

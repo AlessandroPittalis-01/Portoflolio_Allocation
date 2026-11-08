@@ -58,7 +58,9 @@ class TestConfig(unittest.TestCase):
         self.assertEqual((lim["portfolio_vol"].lower, lim["portfolio_vol"].upper), (0.08, 0.10))
         self.assertEqual(lim["fx_share"].upper, 0.30)
         self.assertEqual(lim["fx_share"].status, "decided")
-        self.assertEqual(lim["var99_1d"].status, "proposed")
+        self.assertEqual(lim["var99_1d"].status, "decided")
+        self.assertIn("decision 45", lim["fx_share"].accepted_exception)
+        self.assertIsNone(lim["portfolio_vol"].accepted_exception)
 
     def test_bad_files(self):
         for text in ["limits: {}\n", "limits: {a: {lower: 1, upper: 0, status: decided}}\n",

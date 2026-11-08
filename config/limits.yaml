@@ -3,6 +3,7 @@
 #   GREEN  inside the limit by more than `amber_margin`
 #   AMBER  inside the limit but within `amber_margin` of it
 #   RED    outside the limit
+# `accepted_exception` (optional text): the owner knowingly accepts a RED on this limit; the report shows it.
 # Limits that come from the profile (equity cap, max weight per ETF, drawdown alert / review / stop) are read from
 # config/profiles.yaml and are NOT repeated here. A limit never triggers an automatic trade: it triggers a look (amber)
 # or a formal review of the IPS (red), as in IPS section 7.
@@ -19,22 +20,23 @@ limits:
     label: "Share of variance due to EUR/PLN"
     upper: 0.30
     amber_margin: 0.03
+    accepted_exception: "owner accepts a breach of this limit (IPS decision 45, 2026-11-08): FX share about 33%, hedge not practical for a retail investor; reviewed once a year or if the share rises above 40%"
     status: decided            # IPS section 3.1
   var99_1d:
     label: "1-day VaR 99%, reference model (FHS-EWMA)"
     upper: 0.015
     amber_margin: 0.002
-    status: proposed           # = Gaussian VaR 99% of a portfolio at the upper volatility bound: 2.33 x 10% / sqrt(252) = 1.47%
+    status: decided           # owner confirmed 2026-11-08; = Gaussian VaR 99% of a portfolio at the upper volatility bound: 2.33 x 10% / sqrt(252) = 1.47%
   var_model_zone:
     label: "Basel traffic light of the reference VaR model, 99%"
-    status: proposed           # green = ok, yellow = amber, red = red
+    status: decided           # green = ok, yellow = amber, red = red
   worst_hypothetical:
     label: "Worst hypothetical stress scenario (portfolio move)"
     # lower bound is the profile's stop_contributing_dd
     amber_margin: 0.05
-    status: proposed
+    status: decided
   class_risk_share:
     label: "Risk share of each class vs its budget (share of the risky part), absolute gap"
     upper: 0.10
     amber_margin: 0.05
-    status: proposed           # budgets are in config/portfolio.yaml
+    status: decided           # budgets are in config/portfolio.yaml

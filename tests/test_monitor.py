@@ -75,7 +75,8 @@ class TestChecks(unittest.TestCase):
         md = render_markdown(self._checks().reset_index(), PROFILE, "risk_budget", "2026-11-02")
         self.assertIn("Overall status: **RED**", md)
         self.assertIn("## To look at", md)
-        self.assertIn("proposed", md)
+        md2 = render_markdown(self._checks().reset_index(), PROFILE, "risk_budget", "2026-11-02", {"fx_share": "knowingly accepted"})
+        self.assertIn("ACCEPTED EXCEPTION: knowingly accepted", md2)
 
 
 if __name__ == "__main__":

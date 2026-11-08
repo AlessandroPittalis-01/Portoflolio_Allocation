@@ -37,6 +37,7 @@ class Limit:
     upper: float | None
     amber_margin: float
     status: str
+    accepted_exception: str | None = None
 
 
 def load_limits(path: Path | str = DEFAULT_LIMITS_PATH) -> dict[str, Limit]:
@@ -59,7 +60,10 @@ def load_limits(path: Path | str = DEFAULT_LIMITS_PATH) -> dict[str, Limit]:
             raise LimitsConfigError(f"limit '{lid}': amber_margin must be >= 0")
         if status not in STATUSES:
             raise LimitsConfigError(f"limit '{lid}': status must be one of {STATUSES}")
-        out[str(lid)] = Limit(str(lid), str(body.get("label", lid)), lower, upper, float(margin), status)
+        exc = body.get("accepted_exception")
+        if exc is not None and not isinstance(exc, str):
+            raise LimitsConfigError(f"limit '{lid}': accepted_exception must be text")
+        out[str(lid)] = Limit(str(lid), str(body.get("label", lid)), lower, upper, float(margin), status, exc)
     return out
 
 

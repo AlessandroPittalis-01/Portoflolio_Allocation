@@ -115,7 +115,10 @@ def _fmt(cid: str, v) -> str:
     return f"{v:.2%}" if cid in ("var99_1d",) else f"{v:.1%}"
 
 
-def render_markdown(checks: pd.DataFrame, profile: Profile, method: str, as_of: str) -> str:
+def render_markdown(checks: pd.DataFrame, profile: Profile, method: str, as_of: str,
+                    accepted: dict[str, str] | None = None) -> str:
+    """``accepted`` maps a check id to the text of an exception the owner knowingly accepted (shown, not hidden)."""
+    accepted = accepted or {}
     overall = worst_status(list(checks["status"]))
     lines = [f"# Risk monitoring report - profile `{profile.name}`, portfolio `{method}`", "",
              f"Data up to {as_of}. Overall status: **{overall}**.", "",
@@ -131,7 +134,8 @@ def render_markdown(checks: pd.DataFrame, profile: Profile, method: str, as_of: 
     if len(flagged):
         lines.append("## To look at")
         for r in flagged.itertuples():
-            lines.append(f"- {r.status}: {r.label} = {_fmt(r.id, r.value)} (limit {r.limit})")
+            note = f" - ACCEPTED EXCEPTION: {accepted[r.id]}" if r.id in accepted and r.status == RED else ""
+            lines.append(f"- {r.status}: {r.label} = {_fmt(r.id, r.value)} (limit {r.limit}){note}")
     else:
         lines.append("Nothing to look at: every check is GREEN or N/A.")
     return "\n".join(lines) + "\n"
