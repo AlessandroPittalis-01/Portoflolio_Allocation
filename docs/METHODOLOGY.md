@@ -530,6 +530,13 @@ not how large it will be in the next crisis; the market factor is an ETF proxy.
 
 ---
 
+### Data repair of bad prints (stage 01, `cleaning.py`)
+
+A listed date $t^\*$ (IPS decision 46) gets the last valid price before it: $\tilde P_{t^*}=P_{t^*-1}$. Then
+$r_{t^*}=0$ and $r_{t^*+1}=P_{t^*+1}/P_{t^*-1}-1$, so the true two-day move is kept and the false spike and its reversal
+disappear. Only hand-listed dates are touched: no automatic outlier filter, because such a filter would also cut real
+crashes (for example 2020).
+
 ## 14. Risk limits and monitoring report (stage 14, `limits.py`, `monitor.py`)
 
 A **limit** is a rule on a number that an earlier stage already computes. The report only compares; it never trades.

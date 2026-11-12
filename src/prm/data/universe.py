@@ -39,6 +39,7 @@ class Asset:
     ter_pct: float | None = None      # annual cost in percent (0.20 = 0.20%); None = not verified yet
     asset_class: str | None = None    # equity, bond, real or cash: the class that has a risk budget (IPS decision 28)
     scope: str | None = None          # equity only: 'broad' (world / developed / all-country) or 'regional'; the core ETF of a class is the broadest
+    bad_prints: tuple[str, ...] = ()  # ISO dates of single bad prices, repaired by prm.data.cleaning (a documented decision, IPS 46)
     core: bool = False                # True = may enter the portfolio: broad index, EUR-based (policy, see core_note in the YAML)
 
 
@@ -87,6 +88,15 @@ def _float_or_none(value) -> float | None:
     if number < 0:
         raise ValueError(f"a cost cannot be negative: {value}")
     return number
+
+
+def _iso_dates(value, asset_id: str) -> tuple[str, ...]:
+    """Read an optional list of dates; every item must be a valid ISO date."""
+    if value is None:
+        return ()
+    if not isinstance(value, (list, tuple)):
+        raise ValueError(f"{asset_id}: bad_prints must be a list of dates")
+    return tuple(sorted({_iso_date_or_none(v) for v in value}))
 
 
 def _iso_date_or_none(value) -> str | None:
@@ -138,6 +148,7 @@ def load_universe(path: Path | str = DEFAULT_UNIVERSE_PATH) -> tuple[dict, list[
                     ter_pct=_float_or_none(item.get("ter_pct")),
                     asset_class=_class_or_none(item.get("asset_class"), item["id"]),
                     scope=_scope_or_none(item.get("scope"), item["id"]),
+                    bad_prints=_iso_dates(item.get("bad_prints"), item["id"]),
                     core=bool(_bool_or_none(item.get("core"))),
                 )
             )

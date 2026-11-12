@@ -33,6 +33,7 @@ from pathlib import Path
 import pandas as pd
 
 from prm.config import DEFAULT_SETTINGS_PATH, load_data_settings
+from prm.data.cleaning import repair_bad_prints
 from prm.data.cache import load_currency, load_or_fetch
 from prm.data.quality import QualityReport, check_prices
 from prm.data.sources import PriceSource, YahooSource
@@ -208,6 +209,11 @@ def main(argv: list[str] | None = None, source: PriceSource | None = None) -> in
             n_before = len(df)
             df = df[df.index >= pd.Timestamp(asset.use_from)]
             print(f"  [{asset.id}] use_from {asset.use_from}: {n_before - len(df)} early rows ignored")
+        if asset.bad_prints:
+            # Declared single bad prints (IPS decision 46): replaced by the previous valid price; the raw cache is untouched.
+            df, notes = repair_bad_prints(df, asset.bad_prints)
+            for note in notes:
+                print(f"  [{asset.id}] bad print {note}")
         report = _check(df, asset.yahoo_symbol, settings, min_history)
         currency = load_currency(source, asset.yahoo_symbol, settings.raw_dir)
         rows.append(_quality_row(asset.id, asset.yahoo_symbol, report, origin, currency, asset.use_from))

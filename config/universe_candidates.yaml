@@ -235,6 +235,7 @@ research_only:
     risk_driver: emerging equities
     isin: IE00BTJRMP35   # verified: --find showed the expected fund name
     yahoo_symbol: XMME.DE        # CONFIRMED by --find: XETRA listing
+    bad_prints: ["2025-10-24"]   # volume 0, open=high=low=close, price +12.5% to +16% and back next day (raw rows inspected 2026-11-12); repaired by prm.data.cleaning
   - id: world_momentum
     asset_class: equity
     core: false   # factor strategy: a subset of the market, correlation 0.97-0.98 with it
@@ -244,6 +245,7 @@ research_only:
     risk_driver: momentum factor
     isin: IE00BP3QZ825   # verified: --find showed the expected fund name
     yahoo_symbol: IS3R.DE        # CONFIRMED by --find: XETRA listing
+    bad_prints: ["2017-06-05"]   # volume 0, open=high=low=close, price +12.5% to +16% and back next day (raw rows inspected 2026-11-12); repaired by prm.data.cleaning
     use_from: "2015-06-01"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2015-05-08
   - id: world_quality
     asset_class: equity
@@ -254,6 +256,7 @@ research_only:
     risk_driver: quality factor
     isin: IE00BP3QZ601   # verified: --find showed the expected fund name
     yahoo_symbol: IS3Q.DE        # CONFIRMED by --find: XETRA listing
+    bad_prints: ["2017-06-05"]   # volume 0, open=high=low=close, price +12.5% to +16% and back next day (raw rows inspected 2026-11-12); repaired by prm.data.cleaning
     use_from: "2015-01-02"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2014-11-24
   - id: world_low_vol
     asset_class: equity
@@ -264,6 +267,7 @@ research_only:
     risk_driver: low volatility factor
     isin: IE00B8FHGS14   # verified: --find showed the expected fund name
     yahoo_symbol: IQQ0.DE        # CONFIRMED by --find: XETRA listing of the USD (Acc) class. SXR0.DE is the EUR-hedged class
+    bad_prints: ["2017-06-05", "2025-10-24"]   # volume 0, open=high=low=close, price +12.5% to +16% and back next day (raw rows inspected 2026-11-12); repaired by prm.data.cleaning
     use_from: "2013-05-01"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2013-04-18
   - id: world_value
     asset_class: equity
@@ -274,6 +278,7 @@ research_only:
     risk_driver: value factor
     isin: IE00BP3QZB59   # verified: --find showed the expected fund name
     yahoo_symbol: IS3S.DE        # CONFIRMED by --find: XETRA listing
+    bad_prints: ["2017-06-05"]   # volume 0, open=high=low=close, price +12.5% to +16% and back next day (raw rows inspected 2026-11-12); repaired by prm.data.cleaning
     use_from: "2015-01-02"   # PROVISIONAL: daily moves of +-20-30% in the first months (alternating up and down = bad data). Checked 2026-11-01 with the list of moves above 12%; last one on 2014-11-24
   - id: world_small_cap
     asset_class: equity
